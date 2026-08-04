@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendario — Agente de Contenido</title>
+<link rel="stylesheet" href="/assets/local.css">
+<script src="/assets/loading-overlay.js" defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;600&family=Fira+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050507; --surface: #0d0d12; --surface-2: #14141b; --border: #23232e;
+  --fg: #ececf1; --fg-muted: #8b8b99; --accent: #3956FA; --accent-soft: #3956fa26;
+}
+* { font-family: 'Fira Sans', system-ui, sans-serif; }
+body { background: var(--bg); color: var(--fg); }
+.mono { font-family: 'Fira Code', monospace; font-variant-numeric: tabular-nums; }
+.card { background: var(--surface); border: 1px solid var(--border); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { cursor: pointer; }
+.skeleton { background: var(--surface-2); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { *, .skeleton { animation: none !important; } }
+select, input[type=text] { background: transparent; }
+</style>
+</head>
+<body class="min-h-screen">
+<main class="max-w-4xl mx-auto px-4 py-6 space-y-5">
+
+  <header class="flex items-center gap-3">
+    <a href="/" aria-label="Volver al dashboard"
+      class="flex items-center justify-center h-10 w-10 rounded-lg border transition-colors hover:border-[var(--accent)]"
+      style="border-color:var(--border)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </a>
+    <h1 class="text-lg font-bold tracking-tight">Calendario de contenido</h1>
+    <button id="toggle-series" class="ml-auto text-xs font-semibold rounded-lg px-3 py-2 border transition-colors hover:border-[var(--accent)]" style="border-color:var(--border); color:var(--fg-muted)">🔁 Series</button>
+    <button id="toggle-config" class="text-xs font-semibold rounded-lg px-3 py-2 border transition-colors hover:border-[var(--accent)]" style="border-color:var(--border); color:var(--fg-muted)">⚙ Config</button>
+  </header>
+
+  <section id="config-panel" class="hidden card rounded-xl p-4 space-y-4">
+    <div>
+      <h2 class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--fg-muted)">Canales activos</h2>
+      <div id="canales-check" class="flex flex-wrap gap-2"></div>
+    </div>
+    <div>
+      <h2 class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--fg-muted)">Objetivo semanal por formato</h2>
+      <div id="objetivo-inputs" class="flex flex-wrap gap-3"></div>
+    </div>
+    <button id="guardar-config" class="text-sm font-semibold rounded-lg px-4 py-2 text-white" style="background:var(--accent)">Guardar configuración</button>
+  </section>
+
+  <section id="series-panel" class="hidden card rounded-xl p-4 space-y-3">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">🔁 Series recurrentes</h2>
+    </div>
+    <p class="text-xs" style="color:var(--fg-muted)">Una cita fija por día de la semana (ej. "Lunes de IA") — al generar la semana, cada serie activa agrega su propio slot ese día, además del reparto normal.</p>
+    <div id="series-lista" class="space-y-2"></div>
+    <form id="serie-form" class="flex flex-wrap gap-2 items-center pt-2 border-t" style="border-color:var(--border)">
+      <input type="text" id="serie-nombre" placeholder="Nombre (ej. Lunes de IA)" required
+        class="flex-1 min-w-[160px] rounded-lg px-2 py-1.5 text-sm border" style="border-color:var(--border)">
+      <select id="serie-dia" class="rounded-lg px-2 py-1.5 text-sm border" style="border-color:var(--border)"></select>
+      <select id="serie-formato" class="rounded-lg px-2 py-1.5 text-sm border capitalize" style="border-color:var(--border)"></select>
+      <input type="text" id="serie-tema" placeholder="Tema por defecto (opcional)"
+        class="flex-1 min-w-[160px] rounded-lg px-2 py-1.5 text-sm border" style="border-color:var(--border)">
+      <button type="submit" class="text-sm font-semibold rounded-lg px-3 py-1.5 text-white" style="background:var(--accent)">+ Agregar serie</button>
+    </form>
+  </section>
+
+  <div class="flex items-center justify-between gap-2 flex-wrap">
+    <div class="flex items-center gap-2">
+      <button id="semana-prev" aria-label="Semana anterior" class="h-9 w-9 rounded-lg border flex items-center justify-center hover:border-[var(--accent)]" style="border-color:var(--border)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <span id="semana-label" class="text-sm font-semibold mono"></span>
+      <button id="semana-next" aria-label="Semana siguiente" class="h-9 w-9 rounded-lg border flex items-center justify-center hover:border-[var(--accent)]" style="border-color:var(--border)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+    </div>
+    <button id="generar-semana" class="text-sm font-semibold rounded-lg px-4 py-2 text-white transition-opacity hover:opacity-90" style="background:var(--accent)">✨ Generar semana</button>
+  </div>
+
+  <section id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3" aria-live="polite">
+    <div class="skeleton rounded-xl h-40"></div>
+  </section>
+
+</main>
+<script>
+const FORMATOS = ['video', 'carrusel', 'imagen'];
+const ESTADOS = ['pendiente', 'listo', 'publicado'];
+const ESTADO_COLOR = { pendiente: 'var(--fg-muted)', listo: '#eab308', publicado: '#22c55e' };
+const DIA_NOMBRE = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+const state = { lunes: '', config: { canales: [], canales_disponibles: [], objetivo_semanal: {} }, series: [] };
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  return { ok: r.ok, data: await r.json() };
+}
+
+function lunesDeHoy() {
+  const d = new Date();
+  const dia = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - dia);
+  return d.toISOString().slice(0, 10);
+}
+
+function sumarDias(fechaIso, dias) {
+  const d = new Date(fechaIso + 'T00:00:00');
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatearRangoSemana(lunes) {
+  const inicio = new Date(lunes + 'T00:00:00');
+  const fin = new Date(sumarDias(lunes, 6) + 'T00:00:00');
+  const fmt = (d) => d.toLocaleDateString('es', { day: '2-digit', month: 'short' });
+  return `${fmt(inicio)} — ${fmt(fin)}`;
+}
+
+async function cargarConfig() {
+  const { data } = await api('/api/calendario/config');
+  state.config = data;
+  pintarConfig();
+}
+
+function pintarConfig() {
+  const chk = document.getElementById('canales-check');
+  chk.innerHTML = state.config.canales_disponibles.map(c => `
+    <label class="flex items-center gap-2 text-sm rounded-lg px-3 py-2 border cursor-pointer" style="border-color:var(--border)">
+      <input type="checkbox" value="${c}" ${state.config.canales.includes(c) ? 'checked' : ''}> ${c}
+    </label>`).join('');
+
+  const obj = document.getElementById('objetivo-inputs');
+  obj.innerHTML = FORMATOS.map(f => `
+    <label class="flex items-center gap-2 text-sm">
+      <span class="capitalize" style="color:var(--fg-muted)">${f}</span>
+      <input type="number" min="0" max="14" data-objetivo="${f}" value="${state.config.objetivo_semanal[f] || 0}"
+        class="w-14 rounded-lg px-2 py-1.5 text-sm border" style="border-color:var(--border)">
+    </label>`).join('');
+}
+
+document.getElementById('toggle-config').onclick = () =>
+  document.getElementById('config-panel').classList.toggle('hidden');
+document.getElementById('toggle-series').onclick = () =>
+  document.getElementById('series-panel').classList.toggle('hidden');
+
+async function cargarSeries() {
+  const { data } = await api('/api/series');
+  state.series = data.series;
+  const selDia = document.getElementById('serie-dia');
+  if (!selDia.options.length) {
+    selDia.innerHTML = DIA_NOMBRE.map((d, i) => `<option value="${i}">${d}</option>`).join('');
+    document.getElementById('serie-formato').innerHTML = FORMATOS.map(f => `<option value="${f}">${f}</option>`).join('');
+  }
+  pintarSeries();
+}
+
+function pintarSeries() {
+  const cont = document.getElementById('series-lista');
+  if (!state.series.length) {
+    cont.innerHTML = `<p class="text-xs" style="color:var(--fg-muted)">Todavía no hay series recurrentes.</p>`;
+    return;
+  }
+  cont.innerHTML = state.series.map(s => `
+    <div class="flex items-center gap-2 flex-wrap rounded-lg px-3 py-2 border text-sm" style="border-color:var(--border)" data-serie="${s.id}">
+      <label class="flex items-center gap-1.5 shrink-0">
+        <input type="checkbox" data-serie-activa ${s.activa ? 'checked' : ''}>
+      </label>
+      <span class="font-semibold">${s.nombre}</span>
+      <span class="mono text-xs" style="color:var(--fg-muted)">${DIA_NOMBRE[s.dia_semana]}${s.formato ? ' · ' + s.formato : ''}</span>
+      <span class="text-xs flex-1 min-w-[100px]" style="color:var(--fg-muted)">${s.tema || ''}</span>
+      <button data-serie-borrar class="shrink-0 rounded p-1 hover:text-red-400" style="color:var(--fg-muted)" aria-label="Eliminar serie">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>`).join('');
+  cont.querySelectorAll('[data-serie]').forEach(el => {
+    const id = el.dataset.serie;
+    el.querySelector('[data-serie-activa]').onchange = async (e) => {
+      await api(`/api/series/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activa: e.target.checked })
+      });
+    };
+    el.querySelector('[data-serie-borrar]').onclick = async () => {
+      await api(`/api/series/${id}`, { method: 'DELETE' });
+      cargarSeries();
+    };
+  });
+}
+
+document.getElementById('serie-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const nombre = document.getElementById('serie-nombre').value.trim();
+  if (!nombre) return;
+  await api('/api/series', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nombre,
+      dia_semana: +document.getElementById('serie-dia').value,
+      formato: document.getElementById('serie-formato').value,
+      tema: document.getElementById('serie-tema').value.trim(),
+    })
+  });
+  document.getElementById('serie-nombre').value = '';
+  document.getElementById('serie-tema').value = '';
+  cargarSeries();
+});
+
+document.getElementById('guardar-config').onclick = async () => {
+  const canales = Array.from(document.querySelectorAll('#canales-check input:checked')).map(i => i.value);
+  const objetivo_semanal = {};
+  document.querySelectorAll('[data-objetivo]').forEach(i => objetivo_semanal[i.dataset.objetivo] = +i.value || 0);
+  const { data } = await api('/api/calendario/config', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ canales, objetivo_semanal })
+  });
+  state.config = { ...state.config, ...data };
+  pintarConfig();
+};
+
+document.getElementById('semana-prev').onclick = () => { state.lunes = sumarDias(state.lunes, -7); cargarSemana(); };
+document.getElementById('semana-next').onclick = () => { state.lunes = sumarDias(state.lunes, 7); cargarSemana(); };
+
+document.getElementById('generar-semana').onclick = async () => {
+  const forzar = confirm('¿Generar de nuevo esta semana? Si ya hay piezas planificadas se reemplazan por las nuevas (perdés los temas/estados que hayas cargado).\n\nAceptar = regenerar. Cancelar = solo completar si está vacía.') ;
+  mostrarCargando('Generando semana…');
+  try {
+    const { data } = await api('/api/calendario/generar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ semana: state.lunes, forzar })
+    });
+    pintarGrid(data.slots);
+  } finally {
+    completarCargando();
+  }
+};
+
+async function cargarSemana() {
+  document.getElementById('semana-label').textContent = formatearRangoSemana(state.lunes);
+  document.getElementById('grid').innerHTML = Array.from({length: 7}, () => `<div class="skeleton rounded-xl h-40"></div>`).join('');
+  const { data } = await api('/api/calendario?semana=' + state.lunes);
+  state.lunes = data.lunes;
+  document.getElementById('semana-label').textContent = formatearRangoSemana(state.lunes);
+  pintarGrid(data.slots);
+}
+
+function tarjetaSlot(slot) {
+  return `
+    <article class="card rounded-lg p-3 space-y-2" data-slot="${slot.id}">
+      ${slot.serie_nombre ? `<div class="text-[10px] font-semibold uppercase tracking-wider" style="color:var(--accent)">🔁 ${slot.serie_nombre}</div>` : ''}
+      <div class="flex items-center justify-between gap-1">
+        <select data-campo="formato" class="text-xs font-semibold rounded px-1.5 py-1 border capitalize min-w-0 flex-1" style="border-color:var(--border)">
+          ${FORMATOS.map(f => `<option value="${f}" ${f===slot.formato?'selected':''}>${f}</option>`).join('')}
+        </select>
+        <button data-borrar class="shrink-0 rounded p-1 hover:text-red-400" style="color:var(--fg-muted)" aria-label="Eliminar">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <select data-campo="canal" class="w-full text-xs rounded px-1.5 py-1 border" style="border-color:var(--border); color:var(--fg-muted)">
+        ${state.config.canales_disponibles.map(c => `<option value="${c}" ${c===slot.canal?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <textarea data-campo="tema" rows="2" placeholder="Tema / idea…" class="w-full text-xs rounded px-1.5 py-1 border resize-none" style="border-color:var(--border)">${slot.tema || ''}</textarea>
+      <select data-campo="estado" class="w-full text-xs font-semibold rounded px-1.5 py-1 border" style="border-color:var(--border); color:${ESTADO_COLOR[slot.estado]}">
+        ${ESTADOS.map(e => `<option value="${e}" ${e===slot.estado?'selected':''}>${e}</option>`).join('')}
+      </select>
+    </article>`;
+}
+
+function pintarGrid(slots) {
+  const dias = Array.from({length: 7}, (_, i) => sumarDias(state.lunes, i));
+  const grid = document.getElementById('grid');
+  grid.innerHTML = dias.map((fecha, i) => `
+    <div class="space-y-2">
+      <div class="flex items-center justify-between px-1">
+        <h3 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">${DIA_NOMBRE[i]}</h3>
+        <span class="mono text-[10px]" style="color:var(--fg-muted)">${fecha.slice(5)}</span>
+      </div>
+      <div class="space-y-2" data-dia="${fecha}">
+        ${slots.filter(s => s.fecha === fecha).map(tarjetaSlot).join('')}
+      </div>
+      <button data-agregar="${fecha}" class="w-full text-xs rounded-lg py-1.5 border border-dashed hover:border-[var(--accent)]" style="border-color:var(--border); color:var(--fg-muted)">+ agregar</button>
+    </div>`).join('');
+
+  grid.querySelectorAll('[data-slot]').forEach(art => {
+    const id = art.dataset.slot;
+    art.querySelectorAll('[data-campo]').forEach(campo => {
+      const evento = campo.tagName === 'TEXTAREA' ? 'change' : 'change';
+      campo.addEventListener(evento, async () => {
+        await api(`/api/calendario/slots/${id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [campo.dataset.campo]: campo.value })
+        });
+        if (campo.dataset.campo === 'estado') campo.style.color = ESTADO_COLOR[campo.value];
+      });
+    });
+    art.querySelector('[data-borrar]').onclick = async () => {
+      await api(`/api/calendario/slots/${id}`, { method: 'DELETE' });
+      cargarSemana();
+    };
+  });
+
+  grid.querySelectorAll('[data-agregar]').forEach(btn => btn.onclick = async () => {
+    await api('/api/calendario/slots', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fecha: btn.dataset.agregar, formato: 'video', canal: state.config.canales[0] || 'Instagram' })
+    });
+    cargarSemana();
+  });
+}
+
+(async function init() {
+  state.lunes = lunesDeHoy();
+  await cargarConfig();
+  await cargarSeries();
+  await cargarSemana();
+})();
+</script>
+</body>
+</html>

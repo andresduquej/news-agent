@@ -1,0 +1,28 @@
+{
+  "andres_duque": {
+    "brand_name": "Andrés Duque",
+    "logo_url": "assets/andres-duque-logo.png",
+    "primary_color": "#3956FA",
+    "secondary_color": "#A542F3",
+    "accent_color": "#2BCBFF",
+    "tone_of_voice": "Cercano y directo — como hablarle a un amigo que sabe de negocios digitales, sin tecnicismos innecesarios",
+    "target_audience": "Emprendedores digitales LatAm",
+    "topics": [],
+    "cta_default": "Síguenos para más contenido",
+    "hashtags_base": ["#marketingdigital", "#IA", "#emprendimiento"],
+    "platforms": ["Instagram", "TikTok"]
+  },
+  "han_agency": {
+    "brand_name": "HAM Agencia",
+    "logo_url": "assets/han-agency-logo.png",
+    "primary_color": "#E94560",
+    "secondary_color": "#1A1A2E",
+    "accent_color": "#2BD9FF",
+    "tone_of_voice": "Profesional pero cercano",
+    "target_audience": "Emprendedores digitales LatAm",
+    "topics": ["IA", "automatización", "Meta Ads"],
+    "cta_default": "Síguenos para más contenido",
+    "hashtags_base": ["#automatizacion", "#IA", "#ecommerce"],
+    "platforms": ["Instagram", "TikTok"]
+  }
+}

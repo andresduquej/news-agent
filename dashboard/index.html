@@ -1,0 +1,1265 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agente de Contenido</title>
+<link rel="stylesheet" href="/assets/local.css">
+<script src="/assets/loading-overlay.js" defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;600&family=Fira+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050507;
+  --surface: #0d0d12;
+  --surface-2: #14141b;
+  --border: #23232e;
+  --fg: #ececf1;
+  --fg-muted: #8b8b99;
+  --accent: #3956FA;        /* lo pisa el perfil activo */
+  --accent-soft: #3956fa26;
+  --ok: #34d399;
+}
+* { font-family: 'Fira Sans', system-ui, sans-serif; }
+body { background: var(--bg); color: var(--fg); }
+.mono { font-family: 'Fira Code', monospace; font-variant-numeric: tabular-nums; }
+.card { background: var(--surface); border: 1px solid var(--border); }
+.chip {
+  min-height: 44px; cursor: pointer; user-select: none;
+  border: 1px solid var(--border); background: var(--surface);
+  transition: border-color .2s, background .2s, opacity .2s;
+}
+.chip.active { border-color: var(--accent); background: var(--accent-soft); }
+.chip:not(.active) { opacity: .45; }
+.chip:hover { opacity: 1; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { cursor: pointer; }
+.skeleton { background: var(--surface-2); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) {
+  *, .skeleton { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body class="min-h-screen">
+<main class="max-w-3xl mx-auto px-4 py-6 space-y-6">
+
+  <header class="flex items-center justify-between gap-3 flex-wrap">
+    <div class="flex items-center gap-2.5">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/>
+      </svg>
+      <h1 class="text-lg font-bold tracking-tight">Agente de Contenido</h1>
+    </div>
+    <div class="flex items-center gap-2">
+      <div id="perfil" class="flex gap-1.5" role="tablist" aria-label="Perfil de marca"></div>
+      <a href="/calendario" aria-label="Calendario de contenido"
+        class="flex items-center justify-center h-11 w-11 rounded-lg border transition-colors hover:border-[var(--accent)]"
+        style="border-color:var(--border)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      </a>
+      <a href="/history" aria-label="Historial"
+        class="flex items-center justify-center h-11 w-11 rounded-lg border transition-colors hover:border-[var(--accent)]"
+        style="border-color:var(--border)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+      </a>
+      <a href="/config" aria-label="Configuración"
+        class="flex items-center justify-center h-11 w-11 rounded-lg border transition-colors hover:border-[var(--accent)]"
+        style="border-color:var(--border)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <div id="modo-switch" class="flex gap-2" role="tablist" aria-label="Modo de operación">
+    <button data-modo="barrido" role="tab" aria-selected="true"
+      class="flex-1 min-h-[44px] rounded-lg px-3 text-sm font-semibold border transition-colors">
+      Barrido de noticias
+    </button>
+    <button data-modo="investigacion" role="tab" aria-selected="false"
+      class="flex-1 min-h-[44px] rounded-lg px-3 text-sm font-semibold border transition-colors">
+      Investigación puntual
+    </button>
+    <button data-modo="referentes" role="tab" aria-selected="false"
+      class="flex-1 min-h-[44px] rounded-lg px-3 text-sm font-semibold border transition-colors">
+      Ideas por referentes
+    </button>
+  </div>
+
+  <div id="modo-barrido" class="space-y-6">
+    <section class="card rounded-xl p-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">Temas</h2>
+        <span id="temas-count" class="mono text-xs" style="color:var(--fg-muted)"></span>
+      </div>
+      <div id="temas" class="flex flex-wrap gap-2"></div>
+      <form id="form-tema" class="flex gap-2 pt-1">
+        <input id="nuevo-tema" placeholder="Nuevo tema, ej: Shopify" required aria-label="Nuevo tema"
+          class="flex-1 min-h-[44px] rounded-lg px-3 text-sm bg-transparent border transition-colors"
+          style="border-color:var(--border)">
+        <button class="min-h-[44px] rounded-lg px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          style="background:var(--accent)" aria-label="Agregar tema">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </form>
+    </section>
+
+    <div class="grid grid-cols-2 gap-2">
+      <button id="buscar"
+        class="min-h-[48px] rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors hover:border-[var(--accent)]"
+        style="border:1px solid var(--border); background:var(--surface)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <span id="buscar-label">Buscar noticias</span>
+      </button>
+      <button id="rank-ia"
+        class="min-h-[48px] rounded-xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50"
+        style="background:var(--accent)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
+        <span id="rank-ia-label">TOP 5 con IA</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="modo-investigacion" class="hidden space-y-3">
+    <section class="card rounded-xl p-4 space-y-3">
+      <h2 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">Investigar un tema puntual</h2>
+      <p class="text-xs" style="color:var(--fg-muted)">No tiene que ser una noticia. Escribí cualquier tema y lo investigamos a fondo con acceso a la web en vivo.</p>
+      <form id="form-investigar" class="flex gap-2">
+        <input id="tema-investigar" placeholder="ej: cómo funciona el nuevo algoritmo de TikTok Shop" required
+          aria-label="Tema a investigar"
+          class="flex-1 min-h-[44px] rounded-lg px-3 text-sm bg-transparent border transition-colors"
+          style="border-color:var(--border)">
+        <button id="investigar-btn"
+          class="min-h-[44px] rounded-lg px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          style="background:var(--accent)">
+          <span id="investigar-label">Investigar</span>
+        </button>
+      </form>
+    </section>
+    <section id="investigacion-resultado"></section>
+  </div>
+
+  <div id="modo-referentes" class="hidden space-y-3">
+    <section class="card rounded-xl p-4 space-y-3">
+      <h2 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">Ideas por referentes</h2>
+      <p class="text-xs" style="color:var(--fg-muted)">Pegá links de videos de referentes/competidores (o subí el archivo si el link no se puede descargar). Se transcribe local y gratis, y sacamos tema, hook y estructura de cada uno para proponerte ángulos propios.</p>
+      <form id="form-referentes" class="space-y-2">
+        <textarea id="links-referentes" rows="3" placeholder="Un link por línea (YouTube funciona siempre; Instagram/TikTok según el post)"
+          aria-label="Links de videos referentes"
+          class="w-full rounded-lg px-3 py-2 text-sm bg-transparent border transition-colors"
+          style="border-color:var(--border)"></textarea>
+        <label class="flex items-center gap-2 text-xs cursor-pointer" style="color:var(--fg-muted)">
+          <span class="rounded-lg px-3 py-2 border transition-colors hover:border-[var(--accent)]" style="border-color:var(--border)">📎 Subir archivo(s) de video</span>
+          <input id="archivos-referentes" type="file" accept="video/*,audio/*" multiple class="hidden">
+          <span id="archivos-referentes-nombres"></span>
+        </label>
+        <button id="referentes-btn"
+          class="w-full min-h-[44px] rounded-lg px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          style="background:var(--accent)">
+          <span id="referentes-label">Analizar referentes</span>
+        </button>
+      </form>
+    </section>
+    <section id="referentes-resultado"></section>
+  </div>
+
+  <section id="output" class="hidden card rounded-xl p-5 space-y-4" aria-live="polite"></section>
+
+  <section class="space-y-2">
+    <button id="evergreen-toggle" type="button"
+      class="flex items-center gap-2 text-sm font-semibold hover:underline" style="color:var(--fg-muted)">
+      <span>🌲 Banco evergreen</span>
+      <span id="evergreen-count" class="mono text-xs"></span>
+    </button>
+    <div id="evergreen-lista" class="hidden space-y-2"></div>
+  </section>
+
+  <section id="resultados" class="space-y-2.5" aria-live="polite"></section>
+
+</main>
+<script>
+const state = { perfil: localStorage.getItem('perfil') || 'andres_duque', brands: {}, modo: 'barrido', videoSlides: new Set() };
+
+async function api(path, opts) { return (await fetch(path, opts)).json(); }
+
+function aplicarAcento() {
+  const b = state.brands[state.perfil];
+  if (!b) return;
+  document.documentElement.style.setProperty('--accent', b.primary_color);
+  document.documentElement.style.setProperty('--accent-soft', b.primary_color + '26');
+}
+
+function pintarPerfiles() {
+  const el = document.getElementById('perfil');
+  el.innerHTML = '';
+  for (const [id, b] of Object.entries(state.brands)) {
+    const activo = id === state.perfil;
+    const btn = document.createElement('button');
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', activo);
+    btn.className = 'flex items-center gap-2 rounded-lg px-3 min-h-[44px] text-sm font-medium transition-all';
+    btn.style.cssText = activo
+      ? `border:1px solid ${b.primary_color}; background:${b.primary_color}26`
+      : 'border:1px solid var(--border); opacity:.5';
+    btn.innerHTML = `<img src="/${b.logo_url}" alt="" width="20" height="20" class="h-5 w-5 object-contain rounded">${b.brand_name}`;
+    btn.onclick = () => {
+      state.perfil = id;
+      localStorage.setItem('perfil', id);
+      aplicarAcento(); pintarPerfiles();
+    };
+    el.appendChild(btn);
+  }
+}
+
+function pintarTemas(temas) {
+  const el = document.getElementById('temas');
+  document.getElementById('temas-count').textContent =
+    temas.filter(t => t.active).length + '/' + temas.length;
+  el.innerHTML = '';
+  for (const t of temas) {
+    const chip = document.createElement('span');
+    chip.className = 'chip inline-flex items-center gap-2 rounded-full pl-4 pr-2 text-sm' + (t.active ? ' active' : '');
+    chip.innerHTML = `<span>${t.name}</span>
+      <button aria-label="Quitar ${t.name}" class="rounded-full p-1.5 transition-colors hover:text-red-400" style="color:var(--fg-muted)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>`;
+    chip.querySelector('span').onclick = async () =>
+      pintarTemas(await api(`/api/topics/${encodeURIComponent(t.name)}`, {
+        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({active: !t.active})
+      }));
+    chip.querySelector('button').onclick = async () =>
+      pintarTemas(await api(`/api/topics/${encodeURIComponent(t.name)}`, {method: 'DELETE'}));
+    el.appendChild(chip);
+  }
+}
+
+document.getElementById('form-tema').onsubmit = async e => {
+  e.preventDefault();
+  const input = document.getElementById('nuevo-tema');
+  pintarTemas(await api('/api/topics', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: input.value.trim()})
+  }));
+  input.value = '';
+};
+
+function pintarModoSwitch() {
+  document.querySelectorAll('#modo-switch [data-modo]').forEach(btn => {
+    const activo = btn.dataset.modo === state.modo;
+    btn.setAttribute('aria-selected', activo);
+    btn.style.cssText = activo
+      ? 'border-color:var(--accent); background:var(--accent-soft); color:var(--fg)'
+      : 'border-color:var(--border); color:var(--fg-muted)';
+  });
+  document.getElementById('modo-barrido').classList.toggle('hidden', state.modo !== 'barrido');
+  document.getElementById('modo-investigacion').classList.toggle('hidden', state.modo !== 'investigacion');
+  document.getElementById('modo-referentes').classList.toggle('hidden', state.modo !== 'referentes');
+}
+
+document.querySelectorAll('#modo-switch [data-modo]').forEach(btn => btn.onclick = () => {
+  state.modo = btn.dataset.modo;
+  pintarModoSwitch();
+});
+
+function skeletons(n = 4) {
+  return Array.from({length: n}, () =>
+    `<div class="skeleton rounded-xl h-[92px]"></div>`).join('');
+}
+
+function estrellasHTML(puntaje, total = 5) {
+  const estrella = (llena) => `<svg width="13" height="13" viewBox="0 0 24 24"
+      ${llena ? 'fill="var(--accent)" stroke="var(--accent)"' : 'fill="none" stroke="var(--fg-muted)"'}
+      stroke-width="1.5" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01z"/></svg>`;
+  const estrellas = Array.from({length: total}, (_, i) => estrella(i < puntaje)).join('');
+  return `<span class="inline-flex items-center gap-0.5" role="img" aria-label="${puntaje} de ${total} estrellas de relevancia">${estrellas}</span>`;
+}
+
+function pintarNoticias(data) {
+  const out = document.getElementById('resultados');
+  state.noticias = data;
+  out.innerHTML = '';
+  if (!data.length) {
+    out.innerHTML = `<div class="card rounded-xl p-8 text-center space-y-2">
+      <p class="text-sm font-medium">Sin resultados</p>
+      <p class="text-xs" style="color:var(--fg-muted)">Activa al menos un tema y vuelve a buscar.</p>
+    </div>`;
+    return;
+  }
+  data.forEach((n, i) => {
+    const puntaje = n.score_ia != null ? Math.round(n.score_ia / 2)
+      : n.score != null ? n.score
+      : null;
+    // Las primeras 5 (ya vienen ordenadas por relevancia) se destacan con
+    // estrellas; de la 6ta en adelante quedan disponibles pero sin destaque.
+    const destacada = puntaje != null && i < 5;
+    const estrellas = destacada ? estrellasHTML(puntaje) : '';
+    const detalle = n.justificacion || n.motivo || '';
+    out.insertAdjacentHTML('beforeend', `
+      <article class="card rounded-xl p-4 space-y-2 transition-colors hover:border-[var(--accent)] ${destacada ? 'relative' : ''}"
+        ${destacada ? `style="border-color:var(--accent)"` : ''}>
+        ${destacada ? `<span class="absolute -top-2.5 left-3 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white" style="background:var(--accent)">Destacada</span>` : ''}
+        <div class="flex items-center gap-2 text-xs flex-wrap" style="color:var(--fg-muted)">
+          ${estrellas}
+          <span class="font-medium" style="color:var(--fg)">${n.tema}</span>
+          <span aria-hidden="true">·</span><span>${n.fuente}</span>
+          <span aria-hidden="true">·</span><span class="mono">${n.fecha || 's/f'}</span>
+        </div>
+        <h3 class="font-semibold leading-snug text-[15px]">
+          <button data-toggle-resumen="${i}" aria-expanded="false" class="text-left hover:underline">${n.titulo}</button>
+        </h3>
+        ${detalle ? `<p class="text-xs leading-relaxed" style="color:var(--fg-muted)">${detalle}</p>` : ''}
+        ${n.puntajes ? `<div class="flex gap-2 text-[10px] mono flex-wrap" style="color:var(--fg-muted)">
+          <span title="Novedad">🆕 ${n.puntajes.novedad}</span>
+          <span title="Prueba (evidencia verificable)">📎 ${n.puntajes.prueba}</span>
+          <span title="Conflicto">⚔️ ${n.puntajes.conflicto}</span>
+          <span title="Acción">✅ ${n.puntajes.accion}</span>
+        </div>` : ''}
+        <div data-resumen-panel="${i}" class="hidden text-xs leading-relaxed rounded-lg p-3" style="background:var(--surface-2)"></div>
+        ${n.url ? `<a href="${n.url}" target="_blank" rel="noopener" class="text-xs inline-flex items-center gap-1 hover:underline" style="color:var(--accent)">
+          Abrir noticia
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg>
+        </a>` : ''}
+        <div class="flex gap-2 items-center pt-1">
+          <select data-formato="${i}" aria-label="Formato"
+            class="rounded-lg px-2 min-h-[36px] text-xs bg-transparent border" style="border-color:var(--border)">
+            ${['video','carrusel','imagen'].map(f =>
+              `<option value="${f}" ${f===n.formato_sugerido?'selected':''}>${f}</option>`).join('')}
+          </select>
+          <select data-slides="${i}" aria-label="Cantidad de slides"
+            class="rounded-lg px-2 min-h-[36px] text-xs bg-transparent border ${n.formato_sugerido==='carrusel'?'':'hidden'}"
+            style="border-color:var(--border)">
+            ${[3,4,5,6,7,8,9,10].map(k =>
+              `<option value="${k}" ${k===10?'selected':''}>${k} slides</option>`).join('')}
+          </select>
+          <select data-duracion="${i}" aria-label="Duración del video"
+            class="rounded-lg px-2 min-h-[36px] text-xs bg-transparent border ${n.formato_sugerido==='video'?'':'hidden'}"
+            style="border-color:var(--border)">
+            <option value="15">15s</option>
+            <option value="20">20s</option>
+            <option value="25" selected>25s (óptimo)</option>
+            <option value="30">30s</option>
+            <option value="34">34s</option>
+          </select>
+          <select data-plataforma="${i}" aria-label="Plataforma"
+            class="rounded-lg px-2 min-h-[36px] text-xs bg-transparent border" style="border-color:var(--border)">
+            <option value="" selected>Instagram</option>
+            <option value="tiktok">TikTok</option>
+            <option value="ambas">Ambas (A/B)</option>
+          </select>
+          <button data-crear="${i}"
+            class="min-h-[36px] rounded-lg px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            style="background:var(--accent)">Crear contenido</button>
+          <button data-guardar-evergreen="${i}" type="button" aria-label="Guardar en banco evergreen"
+            class="min-h-[36px] rounded-lg px-2.5 text-xs border transition-colors hover:border-[var(--accent)]"
+            style="border-color:var(--border); color:var(--fg-muted)" title="Guardar en banco evergreen">🌲</button>
+        </div>
+        <div data-params-toggle-wrap="${i}" class="${n.formato_sugerido==='video'?'':'hidden'}">
+          <button data-params-toggle="${i}" type="button"
+            class="text-xs hover:underline" style="color:var(--fg-muted)">⚙ Parámetros de producción</button>
+          <div data-params="${i}" class="hidden flex gap-2 items-center flex-wrap pt-2">
+            <select data-ritmo="${i}" aria-label="Ritmo de corte"
+              class="rounded-lg px-2 min-h-[32px] text-xs bg-transparent border" style="border-color:var(--border)">
+              <option value="alto">Ritmo: alto (viral)</option>
+              <option value="medio" selected>Ritmo: medio</option>
+              <option value="bajo">Ritmo: bajo (educativo)</option>
+            </select>
+            <select data-musica="${i}" aria-label="Música"
+              class="rounded-lg px-2 min-h-[32px] text-xs bg-transparent border" style="border-color:var(--border)">
+              <option value="upbeat" selected>Música: upbeat</option>
+              <option value="tension">Música: tensión</option>
+              <option value="calma">Música: calma</option>
+            </select>
+            <select data-velocidad="${i}" aria-label="Velocidad de narración"
+              class="rounded-lg px-2 min-h-[32px] text-xs bg-transparent border" style="border-color:var(--border)">
+              <option value="rapida" selected>Narración: rápida</option>
+              <option value="pausada">Narración: pausada</option>
+            </select>
+            <label class="flex items-center gap-1.5 text-xs" style="color:var(--fg-muted)">
+              <input type="checkbox" data-zoom="${i}" checked class="rounded"> Zoom/movimiento cámara
+            </label>
+          </div>
+        </div>
+      </article>`);
+  });
+  out.querySelectorAll('[data-crear]').forEach(btn => btn.onclick = () => crearContenido(btn));
+  out.querySelectorAll('[data-guardar-evergreen]').forEach(btn => btn.onclick = () => guardarEvergreen(btn));
+  out.querySelectorAll('[data-params-toggle]').forEach(btn => btn.onclick = () => {
+    document.querySelector(`[data-params="${btn.dataset.paramsToggle}"]`).classList.toggle('hidden');
+  });
+  out.querySelectorAll('[data-formato]').forEach(sel => sel.onchange = () => {
+    document.querySelector(`[data-slides="${sel.dataset.formato}"]`)
+      .classList.toggle('hidden', sel.value !== 'carrusel');
+    document.querySelector(`[data-duracion="${sel.dataset.formato}"]`)
+      .classList.toggle('hidden', sel.value !== 'video');
+    document.querySelector(`[data-params-toggle-wrap="${sel.dataset.formato}"]`)
+      .classList.toggle('hidden', sel.value !== 'video');
+  });
+  out.querySelectorAll('[data-toggle-resumen]').forEach(btn => btn.onclick = () => toggleResumen(btn));
+}
+
+async function toggleResumen(btn) {
+  const i = btn.dataset.toggleResumen;
+  const panel = document.querySelector(`[data-resumen-panel="${i}"]`);
+  const abierto = btn.getAttribute('aria-expanded') === 'true';
+  if (abierto) {
+    panel.classList.add('hidden');
+    btn.setAttribute('aria-expanded', 'false');
+    return;
+  }
+  btn.setAttribute('aria-expanded', 'true');
+  panel.classList.remove('hidden');
+  if (panel.dataset.loaded) return;
+  const n = state.noticias[i];
+  if (n.resumen_local) {
+    panel.textContent = n.resumen_local;
+    panel.dataset.loaded = '1';
+    return;
+  }
+  panel.innerHTML = `<span class="skeleton rounded inline-block h-3 w-11/12"></span>`;
+  try {
+    const r = await fetch('/api/resumen', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: n.url, titulo: n.titulo, contexto: n.justificacion || n.motivo || ''})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+    panel.textContent = data.resumen;
+    panel.dataset.loaded = '1';
+  } catch (e) {
+    panel.textContent = e.message || 'No se pudo cargar el resumen.';
+  }
+}
+
+async function pedirContenido(noticia, formato, num_slides, duracion_seg, plataforma, params) {
+  const r = await fetch('/api/generar', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({noticia, formato, perfil: state.perfil, num_slides, duracion_seg, plataforma, ...params})
+  });
+  const c = await r.json();
+  if (!r.ok) throw new Error(c.error);
+  return c;
+}
+
+async function crearContenido(btn) {
+  const i = +btn.dataset.crear;
+  const noticia = state.noticias[i];
+  const formato = document.querySelector(`[data-formato="${i}"]`).value;
+  const num_slides = formato === 'carrusel'
+    ? +document.querySelector(`[data-slides="${i}"]`).value : 0;
+  const duracion_seg = formato === 'video'
+    ? +document.querySelector(`[data-duracion="${i}"]`).value : 0;
+  const plataforma = document.querySelector(`[data-plataforma="${i}"]`).value;
+  const params = formato === 'video' ? {
+    ritmo_corte: document.querySelector(`[data-ritmo="${i}"]`).value,
+    musica: document.querySelector(`[data-musica="${i}"]`).value,
+    velocidad_narracion: document.querySelector(`[data-velocidad="${i}"]`).value,
+    zoom_camara: document.querySelector(`[data-zoom="${i}"]`).checked,
+  } : {};
+  const panel = document.getElementById('output');
+  btn.disabled = true; btn.textContent = 'Generando…';
+  mostrarCargando('Generando contenido…');
+  panel.classList.remove('hidden');
+  panel.innerHTML = `<div class="skeleton rounded-xl h-40"></div>`;
+  panel.scrollIntoView({behavior: 'smooth'});
+  try {
+    if (plataforma === 'ambas') {
+      const [cInstagram, cTiktok] = await Promise.all([
+        pedirContenido(noticia, formato, num_slides, duracion_seg, 'instagram', params),
+        pedirContenido(noticia, formato, num_slides, duracion_seg, 'tiktok', params),
+      ]);
+      state.variantesPlataforma = {instagram: cInstagram, tiktok: cTiktok};
+      state.contenido = cInstagram;
+      pintarOutput(cInstagram, 'instagram');
+    } else {
+      const c = await pedirContenido(noticia, formato, num_slides, duracion_seg, plataforma, params);
+      state.variantesPlataforma = null;
+      state.contenido = c;
+      pintarOutput(c);
+    }
+  } catch (e) {
+    panel.innerHTML = `<p class="text-sm">${e.message || 'Error generando el contenido.'}</p>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Crear contenido';
+    completarCargando();
+  }
+}
+
+function pintarOutput(c, tabActiva) {
+  const panel = document.getElementById('output');
+  const tabs = state.variantesPlataforma;
+  const barraTabs = tabs ? `
+    <div class="flex gap-2 text-xs">
+      ${['instagram', 'tiktok'].map(p => `
+        <button data-tab-plataforma="${p}"
+          class="rounded-lg px-3 py-1.5 font-semibold border transition-colors"
+          style="${p === tabActiva
+            ? 'background:var(--accent);border-color:var(--accent);color:#fff'
+            : 'border-color:var(--border);color:var(--fg-muted)'}">
+          ${p === 'instagram' ? 'Instagram' : 'TikTok'}
+        </button>`).join('')}
+    </div>` : '';
+  let cuerpo = '';
+  if (c.formato === 'video') {
+    const segmentos = [
+      {campo: 'hook', label: '0-3s · HOOK', texto: c.hook},
+      {campo: 'obstaculo', label: '3-15s · OBSTÁCULO', texto: c.obstaculo},
+      {campo: 'ejecucion', label: '15-25s · EJECUCIÓN', texto: c.ejecucion},
+      {campo: 'cta', label: 'ÚLTIMOS 5s · CTA', texto: c.cta},
+    ].filter(s => s.texto && s.texto.trim());
+    cuerpo = `<div class="space-y-2">
+      ${segmentos.map(s => `
+        <div class="rounded-lg p-3 border" style="border-color:var(--border)">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <p class="mono text-[11px]" style="color:var(--accent)">${s.label}</p>
+            <button data-variantes-campo="${s.campo}"
+              class="text-[11px] font-semibold rounded px-2 py-1 border transition-opacity hover:opacity-90"
+              style="border-color:var(--accent);color:var(--accent)">Variantes</button>
+          </div>
+          <p class="text-sm leading-relaxed">${s.texto}</p>
+          <div data-variantes-resultado="${s.campo}"></div>
+        </div>`).join('')}
+    </div>`;
+    if (c.instrucciones_produccion) {
+      const ip = c.instrucciones_produccion;
+      cuerpo += `
+        <div class="rounded-lg p-3 border" style="border-color:var(--border);background:var(--surface-2)">
+          <p class="text-xs font-semibold uppercase tracking-widest mb-1.5" style="color:var(--fg-muted)">Instrucciones de producción (para quien edita)</p>
+          <p class="text-xs leading-relaxed">Ritmo de corte: <b>${ip.ritmo_corte}</b> · Música: <b>${ip.musica}</b> · Narración: <b>${ip.velocidad_narracion}</b> · Zoom/cámara: <b>${ip.zoom_camara}</b></p>
+        </div>`;
+    }
+    cuerpo += `
+      <div class="rounded-lg p-3 border" style="border-color:var(--border)">
+        <p class="text-xs font-semibold uppercase tracking-widest mb-1.5" style="color:var(--fg-muted)">Subtítulos</p>
+        <p class="text-xs leading-relaxed">Se generan automáticamente al producir el video, sincronizados palabra por palabra con la voz — cubren todo el guion, sin necesidad de curarlos acá.</p>
+      </div>`;
+  } else if (c.formato === 'carrusel') {
+    const ROL_LABEL = {hook: 'HOOK', obstaculo: 'OBSTÁCULO', desarrollo: 'DESARROLLO',
+      resultado: 'RESULTADO', cta: 'CTA'};
+    if (!tabActiva) state.videoSlides = new Set();
+    cuerpo = c.slides.map((s, i) => `
+      <div class="rounded-lg p-3 border" style="border-color:var(--border)">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="mono text-[11px] mb-1" style="color:var(--fg-muted)">SLIDE ${i+1} · <span style="color:var(--accent)">${ROL_LABEL[s.rol] || s.rol || ''}</span></p>
+            <p class="text-sm font-semibold">${s.titular}</p>
+            <p class="text-xs mt-0.5" style="color:var(--fg-muted)">${s.cuerpo}</p>
+          </div>
+          <div class="shrink-0 flex flex-col items-end gap-1.5">
+            <label class="flex items-center gap-1.5 text-xs cursor-pointer" style="color:var(--fg-muted)">
+              <input type="checkbox" data-video-slide="${i+1}" class="rounded"> 🎥 Video
+            </label>
+            <button data-variantes-campo="${i}"
+              class="text-[11px] font-semibold rounded px-2 py-1 border transition-opacity hover:opacity-90"
+              style="border-color:var(--accent);color:var(--accent)">Variantes</button>
+          </div>
+        </div>
+        <div data-variantes-resultado="${i}"></div>
+      </div>`).join('');
+    cuerpo = `<div class="space-y-2">${cuerpo}</div>`;
+  } else {
+    cuerpo = `<p class="text-sm leading-relaxed">${c.cuerpo}</p>`;
+  }
+  const botonProducir = c.formato === 'video'
+    ? `<button id="producir" class="min-h-[44px] rounded-lg px-4 text-sm font-semibold text-white" style="background:var(--accent)">Producir video</button>`
+    : `<button id="producir" class="min-h-[44px] rounded-lg px-4 text-sm font-semibold text-white" style="background:var(--accent)">Generar ${c.formato === 'carrusel' ? 'carrusel' : 'imagen'}</button>`;
+  const selectorFormatoImagen = c.formato === 'imagen' ? `
+    <select id="formato-imagen" aria-label="Formato de imagen"
+      class="rounded-lg px-2 min-h-[44px] text-sm border" style="border-color:var(--border)">
+      <option value="vertical" selected>Vertical (4:5)</option>
+      <option value="cuadrado">Cuadrado (1:1)</option>
+    </select>` : '';
+
+  // El estilo visual aplica a todo (imagen/carrusel/video: en video se
+  // quema como overlay de texto sobre el B-roll). El logo solo aplica a lo
+  // que renderiza image_producer (imagen/carrusel) — el video no lleva logo.
+  const selectorEstilo = `
+    <label class="flex items-center gap-2 text-xs" style="color:var(--fg-muted)">
+      <span>Estilo visual:</span>
+      <select id="estilo-visual" aria-label="Estilo visual"
+        class="rounded-lg px-2 min-h-[32px] text-xs border" style="border-color:var(--border)">
+        <option value="editorial" selected>Editorial dinámico</option>
+        <option value="prensa_ia">Prensa IA</option>
+        <option value="listicle">Listicle numerado</option>
+        <option value="ilustracion">Ilustración minimalista</option>
+        <option value="sketch">Sketch a mano</option>
+        <option value="mockup_telefono">Mockup de teléfono</option>
+        <option value="brutalista">Brutalista</option>
+        <option value="premium">Premium</option>
+      </select>
+    </label>`;
+  // Controles de estilo del texto en pantalla — solo formato video, pisan
+  // el default del skin elegido cuando el usuario los toca.
+  const controlesTextoVideo = c.formato === 'video' ? `
+    <label class="flex items-center gap-2 text-xs" style="color:var(--fg-muted)">
+      Color del texto:
+      <input type="color" id="texto-color" value="#ffffff" class="h-7 w-10 rounded border p-0.5" style="border-color:var(--border)">
+      <button type="button" id="texto-color-auto" class="text-[11px] underline" style="color:var(--fg-muted)">automático</button>
+    </label>
+    <label class="flex items-center gap-2 text-xs" style="color:var(--fg-muted)">
+      <input type="checkbox" id="fondo-texto" checked class="rounded"> Fondo del texto
+    </label>
+    <label class="flex items-center gap-2 text-xs" style="color:var(--fg-muted)">
+      Fuente:
+      <select id="fuente-texto" aria-label="Fuente del texto en pantalla"
+        class="rounded-lg px-2 min-h-[32px] text-xs border" style="border-color:var(--border)">
+        <option value="" selected>Automática (del skin)</option>
+        <option value="sans">Sans</option>
+        <option value="serif">Serif</option>
+      </select>
+    </label>` : '';
+  // Fondo animado (mp4 en loop en vez de PNG estático) — solo tiene sentido
+  // en imagen suelta (el carrusel ya tiene su propio camino de láminas-video,
+  // y el video ya es animado de por sí).
+  const controlesFondoAnimado = c.formato === 'imagen' ? `
+    <label class="flex items-center gap-2 text-xs" style="color:var(--fg-muted)">
+      <input type="checkbox" id="fondo-animado" class="rounded"> 🎬 Fondo animado (en vez de imagen fija)
+    </label>
+    <div id="fondo-animado-opciones" class="hidden flex gap-2 items-center flex-wrap pl-1">
+      <select id="fuente-fondo" aria-label="Origen del fondo animado"
+        class="rounded-lg px-2 min-h-[32px] text-xs border" style="border-color:var(--border)">
+        <option value="pexels" selected>Banco de video (Pexels)</option>
+        <option value="ia">Generado por IA</option>
+      </select>
+      <input type="text" id="fondo-query" placeholder="Búsqueda / prompt del fondo (opcional)"
+        class="rounded-lg px-2 min-h-[32px] text-xs border flex-1 min-w-[180px]" style="border-color:var(--border)">
+    </div>` : '';
+  const controlesLogo = selectorEstilo + controlesTextoVideo + controlesFondoAnimado + (c.formato !== 'video' ? `
+    <label class="flex items-center gap-2 text-xs" style="color:var(--fg-muted)">
+      <input type="checkbox" id="incluir-logo" checked class="rounded"> Incluir logo de marca
+    </label>
+    <label class="flex items-center gap-2 text-xs" style="color:var(--fg-muted)">
+      Logo personalizado (opcional):
+      <input type="file" id="logo-custom" accept="image/png" class="text-xs max-w-[160px]">
+    </label>` : '');
+
+  panel.innerHTML = `
+    ${barraTabs}
+    <div class="flex items-center justify-between gap-3">
+      <h3 class="font-bold text-base leading-snug">${c.titulo}</h3>
+      <span class="rounded-md px-2 py-0.5 text-xs font-medium border shrink-0" style="border-color:var(--border)">${c.formato}</span>
+    </div>
+    ${cuerpo}
+    ${c.formato === 'imagen' ? `
+    <div class="flex gap-2 items-center flex-wrap">
+      <button data-variantes-campo="titulo"
+        class="min-h-[36px] rounded-lg px-3 text-xs font-semibold border transition-opacity hover:opacity-90"
+        style="border-color:var(--accent);color:var(--accent)">Variantes de titular (A/B)</button>
+    </div>
+    <div data-variantes-resultado="titulo"></div>` : ''}
+    <div>
+      <h4 class="text-xs font-semibold uppercase tracking-widest mb-1" style="color:var(--fg-muted)">Caption</h4>
+      <p class="text-sm leading-relaxed">${c.caption}</p>
+      <p class="text-xs mt-2" style="color:var(--accent)">${c.hashtags.join(' ')}</p>
+    </div>
+    <div class="flex gap-3 items-center flex-wrap pt-1">${controlesLogo}</div>
+    <label class="flex items-center gap-2 text-xs" style="color:var(--fg-muted)">
+      <input type="checkbox" id="tambien-historia" class="rounded">
+      También generar historia (9:16) anunciando este contenido
+    </label>
+    <label class="block text-xs" style="color:var(--fg-muted)">
+      🔮 Tu predicción antes de publicar (opcional — se compara luego contra el resultado real en /history)
+      <input type="text" id="prediccion" placeholder="ej: creo que va a andar bien, tema caliente ahora"
+        class="mt-1 w-full rounded-lg px-2.5 py-2 text-xs border" style="border-color:var(--border)">
+    </label>
+    <div class="flex gap-2 items-center flex-wrap">
+      ${selectorFormatoImagen}${botonProducir}
+      <button id="simular-viralidad" type="button"
+        class="min-h-[36px] rounded-lg px-3 text-xs font-semibold border transition-opacity hover:opacity-90"
+        style="border-color:var(--accent);color:var(--accent)">🔮 Simular viralidad</button>
+      <span id="producir-status" class="text-xs" style="color:var(--fg-muted)"></span>
+    </div>
+    <div id="simular-resultado"></div>
+    <div id="media" class="grid grid-cols-2 gap-2"></div>
+    ${c.formato === 'video' ? `
+    <div class="rounded-lg p-3 border space-y-2" style="border-color:var(--border)">
+      <p class="text-xs font-semibold">🧪 Test de variantes (hook × CTA)</p>
+      <p class="text-[11px]" style="color:var(--fg-muted)">Genera varias combinaciones completas para producir todas y ver cuál gana con datos reales (cada una es un video entero — voz + B-roll, cuidado con el costo).</p>
+      <div class="flex gap-2 items-center flex-wrap text-xs">
+        <label class="flex items-center gap-1.5" style="color:var(--fg-muted)">Hooks alternativos:
+          <select id="test-n-hooks" class="rounded-lg px-2 py-1 text-xs border" style="border-color:var(--border)">
+            <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option>
+          </select>
+        </label>
+        <label class="flex items-center gap-1.5" style="color:var(--fg-muted)">CTAs alternativos:
+          <select id="test-n-ctas" class="rounded-lg px-2 py-1 text-xs border" style="border-color:var(--border)">
+            <option value="0" selected>0 (mismo CTA)</option><option value="1">1</option><option value="2">2</option>
+          </select>
+        </label>
+        <button id="test-generar-combos" type="button"
+          class="text-xs font-semibold rounded-lg px-3 py-1.5 border transition-opacity hover:opacity-90"
+          style="border-color:var(--accent);color:var(--accent)">Generar combinaciones</button>
+      </div>
+      <div id="test-combos"></div>
+    </div>` : ''}`;
+  document.getElementById('producir').onclick = producirMedia;
+  document.getElementById('simular-viralidad').onclick = simularViralidad;
+  document.getElementById('test-generar-combos')?.addEventListener('click', generarCombosTest);
+  const inputTextoColor = document.getElementById('texto-color');
+  if (inputTextoColor) {
+    inputTextoColor.dataset.tocado = 'false';
+    inputTextoColor.onchange = () => { inputTextoColor.dataset.tocado = 'true'; };
+  }
+  document.getElementById('texto-color-auto')?.addEventListener('click', () => {
+    inputTextoColor.value = '#ffffff';
+    inputTextoColor.dataset.tocado = 'false';
+  });
+  document.getElementById('fondo-animado')?.addEventListener('change', (e) => {
+    document.getElementById('fondo-animado-opciones')?.classList.toggle('hidden', !e.target.checked);
+  });
+  panel.querySelectorAll('[data-variantes-campo]').forEach(btn => {
+    const campo = btn.dataset.variantesCampo;
+    btn.onclick = () => generarVariantesSegmento(campo, tabActiva, btn);
+  });
+  panel.querySelectorAll('[data-video-slide]').forEach(chk => chk.onchange = () => {
+    const n = +chk.dataset.videoSlide;
+    if (chk.checked) state.videoSlides.add(n); else state.videoSlides.delete(n);
+  });
+  panel.querySelectorAll('[data-tab-plataforma]').forEach(b => b.onclick = () => {
+    const p = b.dataset.tabPlataforma;
+    state.contenido = state.variantesPlataforma[p];
+    pintarOutput(state.contenido, p);
+  });
+}
+
+async function generarVariantesSegmento(campo, tabActiva, btn) {
+  const cont = document.querySelector(`[data-variantes-resultado="${campo}"]`);
+  const textoOriginal = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generando…';
+  mostrarCargando('Generando variantes…');
+  cont.innerHTML = `<div class="skeleton rounded-lg h-16 mt-2"></div>`;
+  try {
+    const r = await fetch('/api/generar-variantes-segmento', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({contenido: state.contenido, perfil: state.perfil, campo, n: 3})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+    cont.innerHTML = `<div class="grid gap-2 mt-2">${data.variantes.map((v, i) => `
+      <div class="rounded-lg p-3 border flex items-start justify-between gap-3" style="border-color:var(--border)">
+        <div>
+          <p class="mono text-[10px] uppercase tracking-wider mb-1" style="color:var(--accent)">${v.angulo || 'alternativa'}</p>
+          <p class="text-sm font-medium leading-snug">${v.texto}</p>
+          ${v.cuerpo ? `<p class="text-xs mt-1" style="color:var(--fg-muted)">${v.cuerpo}</p>` : ''}
+        </div>
+        <button data-usar-variante="${i}" class="shrink-0 min-h-[32px] rounded-lg px-2.5 text-xs font-semibold text-white"
+          style="background:var(--accent)">Usar</button>
+      </div>`).join('')}</div>`;
+    cont.querySelectorAll('[data-usar-variante]').forEach(b => b.onclick = () => {
+      aplicarVarianteSegmento(data.variantes[+b.dataset.usarVariante], campo, tabActiva);
+    });
+  } catch (e) {
+    cont.innerHTML = `<p class="text-xs mt-2" style="color:var(--fg-muted)">${e.message || 'No se pudieron generar variantes.'}</p>`;
+  } finally {
+    btn.disabled = false; btn.textContent = textoOriginal;
+    completarCargando();
+  }
+}
+
+function aplicarVarianteSegmento(variante, campo, tabActiva) {
+  const c = state.contenido;
+  if (c.formato === 'video') {
+    c[campo] = variante.texto;
+    c.guion = [c.hook, c.obstaculo, c.ejecucion, c.cta].filter(p => p && p.trim()).join(' ');
+  } else if (c.formato === 'carrusel') {
+    const idx = +campo;
+    c.slides[idx].titular = variante.texto;
+    if (variante.cuerpo) c.slides[idx].cuerpo = variante.cuerpo;
+  } else {
+    c.titulo = variante.texto;
+  }
+  if (state.variantesPlataforma && tabActiva) state.variantesPlataforma[tabActiva] = c;
+  pintarOutput(c, tabActiva);
+}
+
+function leerArchivoComoDataUri(input) {
+  return new Promise((resolve) => {
+    const file = input?.files?.[0];
+    if (!file) return resolve('');
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
+function textoParaSimular(c) {
+  if (c.formato === 'video') return c.guion || [c.hook, c.obstaculo, c.ejecucion, c.cta].filter(Boolean).join(' ');
+  if (c.formato === 'carrusel') return c.slides.map(s => `${s.titular}. ${s.cuerpo}`).join('\n');
+  return `${c.titulo}. ${c.cuerpo || ''}`;
+}
+
+const PROBABILIDAD_COLOR = {alta: '#22c55e', media: '#eab308', baja: '#ef4444'};
+
+async function simularViralidad() {
+  const btn = document.getElementById('simular-viralidad');
+  const cont = document.getElementById('simular-resultado');
+  const textoOriginal = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Simulando…';
+  mostrarCargando('Simulando viralidad…');
+  cont.innerHTML = `<div class="skeleton rounded-lg h-16 mt-2"></div>`;
+  try {
+    const r = await fetch('/api/matriz/simular', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({perfil: state.perfil, texto: textoParaSimular(state.contenido)})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+    cont.innerHTML = `
+      <div class="rounded-lg p-3 border mt-2 space-y-2" style="border-color:var(--border)">
+        <p class="text-sm font-bold" style="color:${PROBABILIDAD_COLOR[data.probabilidad]}">
+          Probabilidad ${data.probabilidad.toUpperCase()}
+        </p>
+        <p class="text-xs" style="color:var(--fg-muted)">${data.justificacion}</p>
+        ${data.cumple?.length ? `<p class="text-xs"><b>Cumple:</b> ${data.cumple.join(' · ')}</p>` : ''}
+        ${data.no_cumple?.length ? `<p class="text-xs"><b>No cumple:</b> ${data.no_cumple.join(' · ')}</p>` : ''}
+        ${data.sugerencias?.length ? `<ul class="text-xs list-disc pl-4">${data.sugerencias.map(s => `<li>${s}</li>`).join('')}</ul>` : ''}
+      </div>`;
+  } catch (e) {
+    cont.innerHTML = `<p class="text-xs mt-2" style="color:var(--fg-muted)">${e.message || 'No se pudo simular.'}</p>`;
+  } finally {
+    btn.disabled = false; btn.textContent = textoOriginal;
+    completarCargando();
+  }
+}
+
+async function generarCombosTest() {
+  const c = state.contenido;
+  const nHooks = +document.getElementById('test-n-hooks').value;
+  const nCtas = +document.getElementById('test-n-ctas').value;
+  const btn = document.getElementById('test-generar-combos');
+  const cont = document.getElementById('test-combos');
+  btn.disabled = true; btn.textContent = 'Generando…';
+  mostrarCargando('Generando combinaciones…');
+  cont.innerHTML = `<div class="skeleton rounded-lg h-16 mt-2"></div>`;
+  try {
+    const hooksRes = await fetch('/api/generar-variantes-segmento', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({contenido: c, perfil: state.perfil, campo: 'hook', n: Math.max(2, nHooks + 1)})
+    }).then(r => r.json());
+    let ctasAlt = [];
+    if (nCtas > 0 && c.cta) {
+      const ctasRes = await fetch('/api/generar-variantes-segmento', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({contenido: c, perfil: state.perfil, campo: 'cta', n: Math.max(2, nCtas + 1)})
+      }).then(r => r.json());
+      ctasAlt = (ctasRes.variantes || []).slice(0, nCtas);
+    }
+    const hooks = [{angulo: 'original', texto: c.hook}, ...(hooksRes.variantes || []).slice(0, nHooks)];
+    const ctas = [{angulo: 'original', texto: c.cta || ''}, ...ctasAlt];
+    state.testCombos = [];
+    for (const h of hooks) for (const ct of ctas) state.testCombos.push({hook: h, cta: ct});
+    pintarCombosTest();
+  } catch (e) {
+    cont.innerHTML = `<p class="text-xs mt-2" style="color:var(--fg-muted)">${e.message || 'No se pudieron generar las combinaciones.'}</p>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Generar combinaciones';
+    completarCargando();
+  }
+}
+
+function pintarCombosTest() {
+  const cont = document.getElementById('test-combos');
+  if (!state.testCombos?.length) { cont.innerHTML = ''; return; }
+  cont.innerHTML = `
+    <p class="text-[11px] mt-2" style="color:var(--fg-muted)">Elegí cuáles producir (${state.testCombos.length} combinaciones disponibles):</p>
+    <div class="space-y-1 max-h-56 overflow-y-auto mt-1">
+      ${state.testCombos.map((combo, i) => `
+        <label class="flex items-start gap-2 text-xs rounded-lg p-2 border cursor-pointer" style="border-color:var(--border)">
+          <input type="checkbox" data-combo="${i}" class="mt-0.5 rounded">
+          <span><b>Hook</b> (${combo.hook.angulo}): ${combo.hook.texto}${combo.cta.texto ? `<br><b>CTA</b> (${combo.cta.angulo}): ${combo.cta.texto}` : ''}</span>
+        </label>`).join('')}
+    </div>
+    <button id="test-producir" type="button" class="text-xs font-semibold rounded-lg px-3 py-1.5 text-white mt-2" style="background:var(--accent)">Producir seleccionadas</button>
+    <p id="test-status" class="text-xs mt-1" style="color:var(--fg-muted)"></p>`;
+  document.getElementById('test-producir').onclick = producirCombosTest;
+}
+
+async function producirCombosTest() {
+  const seleccionadas = Array.from(document.querySelectorAll('[data-combo]:checked')).map(el => +el.dataset.combo);
+  const status = document.getElementById('test-status');
+  if (!seleccionadas.length) { status.textContent = 'Elegí al menos una combinación.'; return; }
+  const btn = document.getElementById('test-producir');
+  btn.disabled = true;
+  mostrarCargando('Produciendo…');
+  const c = state.contenido;
+  const testId = 'test-' + Date.now();
+  const mostrar_logo = document.getElementById('incluir-logo')?.checked ?? true;
+  const estilo_visual = document.getElementById('estilo-visual')?.value || 'editorial';
+  const logo_data_uri = await leerArchivoComoDataUri(document.getElementById('logo-custom'));
+  let hechos = 0;
+  for (const i of seleccionadas) {
+    const combo = state.testCombos[i];
+    hechos++;
+    status.textContent = `Produciendo ${hechos}/${seleccionadas.length}…`;
+    mostrarCargando(`Produciendo ${hechos}/${seleccionadas.length}…`);
+    const contenidoCombo = {...c, hook: combo.hook.texto, cta: combo.cta.texto};
+    contenidoCombo.guion = [contenidoCombo.hook, contenidoCombo.obstaculo, contenidoCombo.ejecucion, contenidoCombo.cta]
+      .filter(t => t && t.trim()).join(' ');
+    const variante = `Hook ${combo.hook.angulo}${combo.cta.texto ? ' · CTA ' + combo.cta.angulo : ''}`;
+    try {
+      const r = await fetch('/api/producir-video', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({contenido: contenidoCombo, mostrar_logo, logo_data_uri, estilo_visual, test_id: testId, test_variante: variante})
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error);
+    } catch (e) {
+      status.textContent = `Error en variante ${hechos}/${seleccionadas.length}: ${e.message}`;
+      btn.disabled = false;
+      cancelarCargando();
+      return;
+    }
+  }
+  status.textContent = `Listo — ${seleccionadas.length} video(s) producidos. Agrupados como test en /history.`;
+  btn.disabled = false;
+  completarCargando();
+}
+
+async function producirMedia() {
+  const c = state.contenido;
+  const btn = document.getElementById('producir');
+  const status = document.getElementById('producir-status');
+  const media = document.getElementById('media');
+  const endpoint = c.formato === 'video' ? '/api/producir-video' : '/api/producir-imagen';
+  const formato_imagen = document.getElementById('formato-imagen')?.value || 'vertical';
+  const mostrar_logo = document.getElementById('incluir-logo')?.checked ?? true;
+  const estilo_visual = document.getElementById('estilo-visual')?.value || 'editorial';
+  const tambienHistoria = document.getElementById('tambien-historia')?.checked || false;
+  const logo_data_uri = await leerArchivoComoDataUri(document.getElementById('logo-custom'));
+  const video_slides = c.formato === 'carrusel' ? Array.from(state.videoSlides || []) : [];
+  const inputTextoColor = document.getElementById('texto-color');
+  const texto_color = inputTextoColor?.dataset.tocado === 'true' ? inputTextoColor.value : '';
+  const fondo_texto = document.getElementById('fondo-texto')?.checked ?? true;
+  const fuente_texto = document.getElementById('fuente-texto')?.value || '';
+  const fondo_animado = document.getElementById('fondo-animado')?.checked || false;
+  const fuente_fondo = document.getElementById('fuente-fondo')?.value || 'pexels';
+  const fondo_query = document.getElementById('fondo-query')?.value || '';
+  const prediccion = document.getElementById('prediccion')?.value || '';
+  btn.disabled = true;
+  status.textContent = c.formato === 'video' ? 'Voz + B-roll + ensamblado, ~1 min…'
+    : video_slides.length ? `Renderizando + ${video_slides.length} lámina(s) de video (voz+B-roll), ~1 min…`
+    : fondo_animado ? 'Generando fondo animado + composición, ~1 min…'
+    : 'Renderizando…';
+  mostrarCargando(status.textContent);
+  try {
+    const r = await fetch(endpoint, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        contenido: c, formato_imagen, mostrar_logo, logo_data_uri, video_slides, estilo_visual,
+        texto_color, fondo_texto, fuente_texto, fondo_animado, fuente_fondo, fondo_query, prediccion,
+      })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+
+    let archivos = data.archivos;
+    if (tambienHistoria) {
+      status.textContent = c.formato === 'video' ? 'Sacando el mejor frame del video…' : 'Generando historia…';
+      mostrarCargando(status.textContent);
+      const video_url = c.formato === 'video' ? (archivos.find(a => a.endsWith('.mp4')) || '') : '';
+      const rh = await fetch('/api/producir-historia', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          contenido: c, mostrar_logo, logo_data_uri, estilo_visual, video_url,
+          fondo_animado, fuente_fondo, fondo_query,
+        })
+      });
+      const dh = await rh.json();
+      if (rh.ok) archivos = [...archivos, ...dh.archivos];
+    }
+
+    status.textContent = data.avisos?.length ? '⚠ Listo con avisos (ver abajo)' : 'Listo ✓';
+    if (data.avisos?.length) {
+      status.innerHTML += `<div class="mt-1 space-y-0.5">${data.avisos.map(a => `<p style="color:#eab308">${a}</p>`).join('')}</div>`;
+    }
+    media.innerHTML = archivos.map(a =>
+      a.endsWith('.mp4')
+        ? `<video src="${a}" controls class="rounded-lg col-span-2 max-h-96"></video>`
+        : `<a href="${a}" target="_blank"><img src="${a}" class="rounded-lg border" style="border-color:var(--border)" alt="Producción"></a>`
+    ).join('');
+  } catch (e) {
+    status.textContent = e.message || 'Error en la producción.';
+  } finally {
+    btn.disabled = false;
+    completarCargando();
+  }
+}
+
+document.getElementById('rank-ia').onclick = async () => {
+  const btn = document.getElementById('rank-ia');
+  const label = document.getElementById('rank-ia-label');
+  const out = document.getElementById('resultados');
+  btn.disabled = true; label.textContent = 'Analizando…';
+  mostrarCargando('Analizando con IA…');
+  out.innerHTML = skeletons(5);
+  try {
+    const r = await fetch('/api/rank-ia');
+    const data = await r.json();
+    out.innerHTML = '';
+    if (!r.ok) {
+      out.innerHTML = `<div class="card rounded-xl p-8 text-center">
+        <p class="text-sm">${data.error || 'Error en el ranking con IA'}</p></div>`;
+      return;
+    }
+    pintarNoticias(data);
+    guardarSesion();
+  } catch {
+    out.innerHTML = `<div class="card rounded-xl p-8 text-center"><p class="text-sm">No se pudo completar el ranking.</p></div>`;
+  } finally {
+    btn.disabled = false; label.textContent = 'TOP 5 con IA';
+    completarCargando();
+  }
+};
+
+document.getElementById('form-investigar').onsubmit = async e => {
+  e.preventDefault();
+  const tema = document.getElementById('tema-investigar').value.trim();
+  if (!tema) return;
+  const btn = document.getElementById('investigar-btn');
+  const label = document.getElementById('investigar-label');
+  const out = document.getElementById('investigacion-resultado');
+  btn.disabled = true; label.textContent = 'Investigando…';
+  mostrarCargando('Investigando…');
+  out.innerHTML = `<div class="skeleton rounded-xl h-24 mb-3"></div>` + skeletons(3);
+  try {
+    const r = await fetch('/api/investigar', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tema, perfil: state.perfil})
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      out.innerHTML = `<div class="card rounded-xl p-8 text-center"><p class="text-sm">${data.error || 'No se pudo investigar el tema.'}</p></div>`;
+      return;
+    }
+    state.ultimaInvestigacion = data;
+    pintarInvestigacion(data);
+    guardarSesion();
+  } catch {
+    out.innerHTML = `<div class="card rounded-xl p-8 text-center"><p class="text-sm">No se pudo investigar el tema.</p></div>`;
+  } finally {
+    btn.disabled = false; label.textContent = 'Investigar';
+    completarCargando();
+  }
+};
+
+function pintarInvestigacion(data) {
+  const out = document.getElementById('investigacion-resultado');
+  const resumenLocal = data.resumen + (data.puntos_clave?.length
+    ? '\n\n' + data.puntos_clave.map(p => `• ${p}`).join('\n') : '');
+
+  out.innerHTML = `
+    <div class="card rounded-xl p-4 space-y-2 mb-3">
+      <h3 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">Hallazgos</h3>
+      <p class="text-sm leading-relaxed">${data.resumen}</p>
+      ${data.puntos_clave?.length ? `<ul class="text-xs space-y-1 pt-1" style="color:var(--fg-muted)">
+        ${data.puntos_clave.map(p => `<li>• ${p}</li>`).join('')}
+      </ul>` : ''}
+      ${!data.angulos?.length ? `<p class="text-xs pt-1" style="color:#eab308">Ningún ángulo tuvo evidencia verificable suficiente para pasar el filtro de calidad (Prueba) — probá con un tema más específico o con fuentes más recientes.</p>` : ''}
+    </div>`;
+
+  // Cada ángulo se trata como una "noticia" sintética — reutiliza toda la
+  // UI de selección de formato / crear contenido del Modo 1.
+  const pseudoNoticias = (data.angulos || []).map(a => ({
+    titulo: a.gancho,
+    tema: data.tema,
+    fuente: `Investigación · ${a.angulo}`,
+    fecha: new Date().toISOString().slice(0, 10),
+    url: '',
+    justificacion: a.justificacion || `Ángulo: ${a.angulo}`,
+    puntajes: a.puntajes,
+    formato_sugerido: a.formato_sugerido,
+    resumen_local: resumenLocal,
+    resumen: data.resumen,
+  }));
+  pintarNoticias(pseudoNoticias);
+}
+
+document.getElementById('archivos-referentes').onchange = e => {
+  document.getElementById('archivos-referentes-nombres').textContent =
+    Array.from(e.target.files).map(f => f.name).join(', ');
+};
+
+document.getElementById('form-referentes').onsubmit = async e => {
+  e.preventDefault();
+  const links = document.getElementById('links-referentes').value
+    .split('\n').map(l => l.trim()).filter(Boolean);
+  const archivos = document.getElementById('archivos-referentes').files;
+  if (!links.length && !archivos.length) return;
+
+  const btn = document.getElementById('referentes-btn');
+  const label = document.getElementById('referentes-label');
+  const out = document.getElementById('referentes-resultado');
+  btn.disabled = true; label.textContent = 'Transcribiendo y analizando…';
+  mostrarCargando('Transcribiendo y analizando…');
+  out.innerHTML = `<div class="skeleton rounded-xl h-24 mb-3"></div>` + skeletons(3);
+  try {
+    const form = new FormData();
+    form.append('perfil', state.perfil);
+    form.append('links', JSON.stringify(links));
+    for (const f of archivos) form.append('archivos', f);
+    const r = await fetch('/api/referentes', { method: 'POST', body: form });
+    const data = await r.json();
+    if (!r.ok) {
+      out.innerHTML = `<div class="card rounded-xl p-8 text-center"><p class="text-sm">${data.error || 'No se pudo analizar los referentes.'}</p></div>`;
+      return;
+    }
+    pintarReferentes(data);
+  } catch {
+    out.innerHTML = `<div class="card rounded-xl p-8 text-center"><p class="text-sm">No se pudo analizar los referentes.</p></div>`;
+  } finally {
+    btn.disabled = false; label.textContent = 'Analizar referentes';
+    completarCargando();
+  }
+};
+
+function pintarReferentes(data) {
+  const out = document.getElementById('referentes-resultado');
+  const analisis = (data.referentes || []).map(r => `
+    <div class="border-t pt-2 mt-2 first:border-0 first:mt-0 first:pt-0" style="border-color:var(--border)">
+      <p class="text-xs font-semibold truncate" style="color:var(--fg-muted)">${r.fuente}</p>
+      <p class="text-sm"><span style="color:var(--fg-muted)">Tema:</span> ${r.tema_principal}</p>
+      <p class="text-sm"><span style="color:var(--fg-muted)">Hook:</span> ${r.hook_usado}</p>
+      <p class="text-sm"><span style="color:var(--fg-muted)">Por qué funciona:</span> ${r.por_que_funciona}</p>
+    </div>`).join('');
+
+  out.innerHTML = `
+    <div class="card rounded-xl p-4 space-y-1 mb-3">
+      <h3 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">Análisis de referentes</h3>
+      ${analisis}
+    </div>`;
+
+  // Cada ángulo entra al mismo flujo de siempre como "noticia" sintética.
+  const pseudoNoticias = (data.angulos || []).map(a => ({
+    titulo: a.gancho,
+    tema: a.angulo,
+    fuente: `Referente · ${a.inspirado_en}`,
+    fecha: new Date().toISOString().slice(0, 10),
+    url: '',
+    justificacion: `Ángulo: ${a.angulo} — inspirado en ${a.inspirado_en}`,
+    formato_sugerido: a.formato_sugerido,
+    resumen: a.gancho,
+  }));
+  pintarNoticias(pseudoNoticias);
+}
+
+document.getElementById('buscar').onclick = async () => {
+  const btn = document.getElementById('buscar');
+  const label = document.getElementById('buscar-label');
+  const out = document.getElementById('resultados');
+  btn.disabled = true; label.textContent = 'Buscando…';
+  mostrarCargando('Buscando noticias…');
+  out.innerHTML = skeletons();
+  try {
+    pintarNoticias(await api('/api/news'));
+    guardarSesion();
+  } catch {
+    out.innerHTML = `<div class="card rounded-xl p-8 text-center space-y-3">
+      <p class="text-sm font-medium">No se pudieron cargar las noticias</p>
+      <button onclick="document.getElementById('buscar').click()"
+        class="text-sm font-semibold rounded-lg px-4 py-2 text-white" style="background:var(--accent)">Reintentar</button>
+    </div>`;
+  } finally {
+    btn.disabled = false; label.textContent = 'Buscar noticias';
+    completarCargando();
+  }
+};
+
+// Los resultados solo viven en memoria — si el usuario navega a /history o
+// /config y vuelve, el navegador recarga esta página y se pierden. Los
+// guardamos en sessionStorage (dura la pestaña) y los restauramos al cargar.
+function guardarSesion() {
+  try {
+    sessionStorage.setItem('sesion', JSON.stringify({
+      modo: state.modo,
+      noticias: state.modo === 'barrido' ? state.noticias : null,
+      investigacion: state.modo === 'investigacion' ? state.ultimaInvestigacion : null,
+    }));
+  } catch {}
+}
+
+function restaurarSesion() {
+  let s;
+  try { s = JSON.parse(sessionStorage.getItem('sesion') || 'null'); } catch { return; }
+  if (!s) return;
+  if (s.modo) { state.modo = s.modo; pintarModoSwitch(); }
+  if (s.modo === 'barrido' && s.noticias?.length) {
+    pintarNoticias(s.noticias);
+  } else if (s.modo === 'investigacion' && s.investigacion) {
+    state.ultimaInvestigacion = s.investigacion;
+    pintarInvestigacion(s.investigacion);
+  }
+}
+
+async function guardarEvergreen(btn) {
+  const i = +btn.dataset.guardarEvergreen;
+  const noticia = state.noticias[i];
+  btn.disabled = true;
+  try {
+    await fetch('/api/evergreen', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({noticia})
+    });
+    btn.textContent = '✓'; btn.style.color = 'var(--ok)';
+    if (!document.getElementById('evergreen-lista').classList.contains('hidden')) cargarEvergreen();
+    else cargarEvergreenCount();
+  } catch {
+    btn.disabled = false;
+  }
+}
+
+async function cargarEvergreenCount() {
+  const data = await api('/api/evergreen');
+  document.getElementById('evergreen-count').textContent = data.length ? `(${data.length})` : '';
+  return data;
+}
+
+async function cargarEvergreen() {
+  const cont = document.getElementById('evergreen-lista');
+  cont.innerHTML = `<div class="skeleton rounded-lg h-16"></div>`;
+  const data = await cargarEvergreenCount();
+  if (!data.length) {
+    cont.innerHTML = `<p class="text-xs" style="color:var(--fg-muted)">Todavía no guardaste nada. Usá el botón 🌲 en una noticia para guardarla acá.</p>`;
+    return;
+  }
+  cont.innerHTML = data.map(e => `
+    <article class="card rounded-xl p-3 space-y-1.5">
+      <div class="flex items-start justify-between gap-2">
+        <h4 class="text-sm font-semibold leading-snug">${e.noticia.titulo}</h4>
+        <button data-eliminar-evergreen="${e.id}" aria-label="Eliminar del banco"
+          class="shrink-0 text-xs rounded-lg px-2 py-1 border hover:border-red-400" style="border-color:var(--border); color:var(--fg-muted)">✕</button>
+      </div>
+      <p class="text-xs" style="color:var(--fg-muted)">${e.noticia.tema || ''}${e.noticia.tema && e.noticia.fuente ? ' · ' : ''}${e.noticia.fuente || ''}</p>
+      <button data-usar-evergreen="${e.id}"
+        class="text-xs font-semibold rounded-lg px-3 py-1.5 text-white" style="background:var(--accent)">Usar esta idea</button>
+    </article>`).join('');
+  cont.querySelectorAll('[data-eliminar-evergreen]').forEach(b => b.onclick = async () => {
+    await fetch(`/api/evergreen/${b.dataset.eliminarEvergreen}`, {method: 'DELETE'});
+    cargarEvergreen();
+  });
+  cont.querySelectorAll('[data-usar-evergreen]').forEach(b => b.onclick = () => {
+    const entrada = data.find(e => e.id === b.dataset.usarEvergreen);
+    if (!entrada) return;
+    pintarNoticias([{...entrada.noticia, formato_sugerido: 'carrusel'}]);
+    document.getElementById('resultados').scrollIntoView({behavior: 'smooth'});
+  });
+}
+
+document.getElementById('evergreen-toggle').onclick = () => {
+  const cont = document.getElementById('evergreen-lista');
+  const abrir = cont.classList.contains('hidden');
+  cont.classList.toggle('hidden');
+  if (abrir) cargarEvergreen();
+};
+
+(async () => {
+  state.brands = await api('/api/brands');
+  aplicarAcento(); pintarPerfiles();
+  pintarModoSwitch();
+  pintarTemas(await api('/api/topics'));
+  restaurarSesion();
+  cargarEvergreenCount();
+})();
+</script>
+</body>
+</html>

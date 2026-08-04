@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuración — Agente de Contenido</title>
+<link rel="stylesheet" href="/assets/local.css">
+<script src="/assets/loading-overlay.js" defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;600&family=Fira+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050507; --surface: #0d0d12; --surface-2: #14141b; --border: #23232e;
+  --fg: #ececf1; --fg-muted: #8b8b99; --accent: #3956FA; --accent-soft: #3956fa26;
+  --ok: #34d399; --err: #ef4444;
+}
+* { font-family: 'Fira Sans', system-ui, sans-serif; }
+body { background: var(--bg); color: var(--fg); }
+.mono { font-family: 'Fira Code', monospace; font-variant-numeric: tabular-nums; }
+.card { background: var(--surface); border: 1px solid var(--border); }
+input, select, textarea { background: transparent; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { cursor: pointer; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--fg-muted); font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
+.skeleton { background: var(--surface-2); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { *, .skeleton { animation: none !important; } }
+</style>
+</head>
+<body class="min-h-screen">
+<main class="max-w-3xl mx-auto px-4 py-6 space-y-6">
+
+  <header class="flex items-center gap-3">
+    <a href="/" aria-label="Volver al dashboard"
+      class="flex items-center justify-center h-10 w-10 rounded-lg border transition-colors hover:border-[var(--accent)]"
+      style="border-color:var(--border)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </a>
+    <h1 class="text-lg font-bold tracking-tight">Configuración</h1>
+  </header>
+
+  <!-- Claves API -->
+  <section class="card rounded-xl p-4 space-y-3">
+    <h2 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">Claves API</h2>
+    <div id="claves" class="space-y-3"></div>
+  </section>
+
+  <!-- Modelo de IA por tarea -->
+  <section class="card rounded-xl p-4 space-y-3">
+    <h2 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">Modelo de IA por tarea</h2>
+    <p class="text-xs" style="color:var(--fg-muted)">Elegí qué proveedor y modelo usa cada parte del agente.
+      Regla general: para tareas de alto volumen (ranking, resumen) conviene un modelo rápido y barato;
+      para el contenido final (generación) vale la pena uno de más calidad.</p>
+    <div id="modelos" class="space-y-3"></div>
+  </section>
+
+  <!-- Voz de video -->
+  <section class="card rounded-xl p-4 space-y-3">
+    <h2 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">Voz de video (ElevenLabs)</h2>
+    <p class="text-xs" style="color:var(--fg-muted)">La voz que narra los guiones de video.</p>
+    <div class="flex gap-2 flex-wrap">
+      <div id="voz-filtro-categoria" class="flex gap-1.5"></div>
+      <select id="voz-filtro-genero" class="rounded-lg px-2 min-h-[36px] text-xs border" style="border-color:var(--border)">
+        <option value="">Cualquier género</option>
+        <option value="male">Masculina</option>
+        <option value="female">Femenina</option>
+      </select>
+    </div>
+    <div id="voces" class="space-y-2"></div>
+    <details class="pt-1">
+      <summary class="text-xs cursor-pointer" style="color:var(--fg-muted)">¿Tenés el Voice ID de una voz de la librería de ElevenLabs?</summary>
+      <div class="flex gap-2 pt-2">
+        <input id="voz-id-manual" placeholder="Voice ID" class="flex-1 min-h-[40px] rounded-lg px-3 text-sm border mono" style="border-color:var(--border)">
+        <input id="voz-nombre-manual" placeholder="Nombre" class="w-32 min-h-[40px] rounded-lg px-3 text-sm border" style="border-color:var(--border)">
+        <button id="voz-usar-manual" class="min-h-[40px] rounded-lg px-3 text-xs font-semibold text-white" style="background:var(--accent)">Usar</button>
+      </div>
+    </details>
+  </section>
+
+  <!-- Perfiles de marca -->
+  <section class="card rounded-xl p-4 space-y-3">
+    <h2 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">Perfiles de marca</h2>
+    <div id="marca-tabs" class="flex gap-1.5"></div>
+    <div id="marca-form" class="space-y-3"></div>
+  </section>
+
+  <!-- Gastos -->
+  <section class="card rounded-xl p-4 space-y-3">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">Gastos</h2>
+      <span id="gasto-total" class="mono text-sm font-semibold"></span>
+    </div>
+    <div id="gastos-resumen"></div>
+    <div class="flex gap-2 flex-wrap items-center">
+      <select id="gasto-filtro-herramienta" class="rounded-lg px-2 min-h-[36px] text-xs border" style="border-color:var(--border)">
+        <option value="">Toda herramienta</option>
+      </select>
+      <select id="gasto-filtro-tarea" class="rounded-lg px-2 min-h-[36px] text-xs border" style="border-color:var(--border)">
+        <option value="">Toda tarea</option>
+      </select>
+      <div class="flex-1"></div>
+      <a id="gasto-descargar" href="/api/config/gastos/exportar" download="gastos.csv"
+        class="text-xs rounded-lg px-3 min-h-[36px] flex items-center border transition-colors hover:border-[var(--accent)]"
+        style="border-color:var(--border)">Descargar CSV</a>
+      <button id="gasto-vaciar" class="text-xs rounded-lg px-3 min-h-[36px] border transition-colors hover:border-red-400"
+        style="border-color:var(--border)">Vaciar todo</button>
+    </div>
+    <div id="gastos" class="space-y-2"></div>
+    <div class="flex items-center justify-between">
+      <p id="gastos-conteo" class="text-xs" style="color:var(--fg-muted)"></p>
+      <button id="gastos-ver-mas" class="hidden text-xs hover:underline" style="color:var(--accent)">Ver más</button>
+    </div>
+  </section>
+
+  <!-- Errores -->
+  <section class="card rounded-xl p-4 space-y-3">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-semibold uppercase tracking-widest" style="color:var(--fg-muted)">Errores de la plataforma</h2>
+      <button id="limpiar-errores" class="text-xs hover:underline" style="color:var(--fg-muted)">Limpiar</button>
+    </div>
+    <div id="errores" class="space-y-2"></div>
+  </section>
+
+</main>
+<script>
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const data = await r.json();
+  return {ok: r.ok, data};
+}
+
+// ---------- Claves API ----------
+const PROVEEDOR_LABEL = {
+  gemini: 'Gemini', claude: 'Claude (Anthropic)',
+  openai: 'OpenAI', perplexity: 'Perplexity',
+  elevenlabs: 'ElevenLabs (voz)', pexels: 'Pexels (B-roll)',
+};
+
+async function cargarClaves() {
+  const {data} = await api('/api/config/claves');
+  const el = document.getElementById('claves');
+  el.innerHTML = data.map(c => `
+    <div class="space-y-1.5">
+      <div class="flex items-center gap-2 text-xs">
+        <span class="inline-block w-2 h-2 rounded-full shrink-0" style="background:${c.configurada ? 'var(--ok)' : 'var(--err)'}"></span>
+        <span style="color:var(--fg-muted)">${PROVEEDOR_LABEL[c.proveedor] || c.proveedor}</span>
+        ${c.configurada ? `<span class="mono" style="color:var(--fg-muted)">${c.valor_enmascarado}</span>` : ''}
+      </div>
+      <div class="flex gap-2">
+        <input data-clave="${c.proveedor}" type="password" autocomplete="off"
+          placeholder="${c.configurada ? 'Pegar para reemplazar' : 'Pegar API key'}"
+          class="flex-1 min-h-[40px] rounded-lg px-3 text-sm border" style="border-color:var(--border)">
+        <button data-guardar-clave="${c.proveedor}"
+          class="min-h-[40px] rounded-lg px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+          style="background:var(--accent)">Guardar</button>
+        ${c.configurada ? `<button data-borrar-clave="${c.proveedor}"
+          class="min-h-[40px] rounded-lg px-3 text-xs border transition-colors hover:border-red-400"
+          style="border-color:var(--border)">Borrar</button>` : ''}
+      </div>
+    </div>`).join('');
+  el.querySelectorAll('[data-guardar-clave]').forEach(btn => btn.onclick = async () => {
+    const prov = btn.dataset.guardarClave;
+    const input = document.querySelector(`[data-clave="${prov}"]`);
+    if (!input.value.trim()) return;
+    btn.disabled = true;
+    await api('/api/config/claves', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({proveedor: prov, valor: input.value.trim()})
+    });
+    await cargarClaves();
+  });
+  el.querySelectorAll('[data-borrar-clave]').forEach(btn => btn.onclick = async () => {
+    await api(`/api/config/claves/${btn.dataset.borrarClave}`, {method: 'DELETE'});
+    await cargarClaves();
+  });
+}
+
+// ---------- Modelo de IA por tarea ----------
+const TAREA_LABEL = {
+  ranking: 'Ranking de noticias (TOP 5 con IA)',
+  generacion: 'Generación de contenido (guion/carrusel/imagen)',
+  resumen: 'Resumen de noticias al expandir',
+  investigacion: 'Investigación bajo demanda (Modo 2)',
+};
+
+let tareasConf = {}, proveedoresIA = [];
+const modelosCache = {};
+// Preferido al cambiar de proveedor sin selección previa (evita quedarse
+// con el primero alfabético, que puede ser un modelo especializado/preview).
+const MODELO_PREFERIDO = {
+  gemini: 'gemini-2.5-flash', claude: 'claude-opus-4-8',
+  openai: 'gpt-4o-mini', perplexity: 'sonar-pro',
+};
+
+// Qué necesita cada tarea: 'rapido' (mucho volumen, barato) o 'calidad'
+// (contenido final, vale la pena pagar más por mejor redacción).
+const TAREA_NECESIDAD = {ranking: 'rapido', generacion: 'calidad', resumen: 'rapido', investigacion: 'calidad'};
+
+// Recomendación por proveedor según esa necesidad. Se marca en el selector
+// y se explica abajo — no se aplica solo, es una sugerencia.
+const RECOMENDADO = {
+  gemini: {
+    rapido: {modelo: 'gemini-2.5-flash', razon: 'rápido y muy barato, ideal para procesar muchas noticias seguidas'},
+    calidad: {modelo: 'gemini-2.5-pro', razon: 'más capacidad de redacción para el contenido que se publica'},
+  },
+  claude: {
+    rapido: {modelo: 'claude-haiku-4-5', razon: 'el más rápido y económico de Claude'},
+    calidad: {modelo: 'claude-opus-4-8', razon: 'el más capaz de Claude, mejor para guiones y copys finales'},
+  },
+  openai: {
+    rapido: {modelo: 'gpt-4o-mini', razon: 'rápido y de bajo costo'},
+    calidad: {modelo: 'gpt-4o', razon: 'mejor calidad de escritura'},
+  },
+  perplexity: {
+    rapido: {modelo: 'sonar', razon: 'el más económico'},
+    calidad: {modelo: 'sonar-pro', razon: 'mejor para investigar y citar fuentes actuales'},
+  },
+};
+
+async function modelosDe(proveedor) {
+  if (modelosCache[proveedor]) return modelosCache[proveedor];
+  const {data} = await api(`/api/config/modelos/${proveedor}`);
+  modelosCache[proveedor] = data;
+  return data;
+}
+
+async function cargarModelos() {
+  const {data} = await api('/api/config/modelos');
+  tareasConf = data.tareas;
+  proveedoresIA = data.proveedores;
+  const el = document.getElementById('modelos');
+  el.innerHTML = Object.entries(tareasConf).map(([tarea, conf]) => `
+    <div class="space-y-1">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-xs flex-1 min-w-[180px]" style="color:var(--fg-muted)">${TAREA_LABEL[tarea] || tarea}</span>
+        <select data-proveedor-tarea="${tarea}"
+          class="rounded-lg px-2 min-h-[36px] text-xs border" style="border-color:var(--border)">
+          ${proveedoresIA.map(p =>
+            `<option value="${p}" ${p===conf.proveedor?'selected':''}>${PROVEEDOR_LABEL[p]}</option>`).join('')}
+        </select>
+        <select data-modelo-tarea="${tarea}"
+          class="rounded-lg px-2 min-h-[36px] text-xs border" style="border-color:var(--border)">
+          <option value="${conf.modelo}">${conf.modelo}</option>
+        </select>
+      </div>
+      <p data-aviso-modelo="${tarea}" class="text-xs" style="color:var(--fg-muted)"></p>
+    </div>`).join('');
+
+  for (const tarea of Object.keys(tareasConf)) {
+    poblarModelos(tarea, tareasConf[tarea].proveedor, tareasConf[tarea].modelo);
+  }
+
+  el.querySelectorAll('[data-proveedor-tarea]').forEach(sel => sel.onchange = async () => {
+    const tarea = sel.dataset.proveedorTarea;
+    await poblarModelos(tarea, sel.value);
+    guardarModelo(tarea);
+  });
+  el.querySelectorAll('[data-modelo-tarea]').forEach(sel => sel.onchange = () =>
+    guardarModelo(sel.dataset.modeloTarea));
+}
+
+async function poblarModelos(tarea, proveedor, modeloActual) {
+  const modeloSel = document.querySelector(`[data-modelo-tarea="${tarea}"]`);
+  const aviso = document.querySelector(`[data-aviso-modelo="${tarea}"]`);
+  modeloSel.disabled = true;
+  aviso.textContent = 'Consultando modelos disponibles…';
+  const {modelos, en_vivo, aviso: msg} = await modelosDe(proveedor);
+  if (!modeloActual) {
+    modeloActual = modelos.includes(MODELO_PREFERIDO[proveedor]) ? MODELO_PREFERIDO[proveedor] : modelos[0];
+  }
+  const actual = modeloActual && !modelos.includes(modeloActual) ? [modeloActual] : [];
+  const recomendado = RECOMENDADO[proveedor]?.[TAREA_NECESIDAD[tarea]];
+  const esRecomendado = m => recomendado && m === recomendado.modelo;
+  modeloSel.innerHTML = [...actual, ...modelos].map(m =>
+    `<option value="${m}" ${m===modeloActual?'selected':''}>${m}${esRecomendado(m) ? ' — recomendado' : ''}</option>`).join('')
+    || `<option value="">Sin modelos disponibles</option>`;
+  modeloSel.disabled = false;
+
+  const notaRecomendacion = recomendado && modelos.includes(recomendado.modelo)
+    ? `Recomendado: ${recomendado.modelo} (${recomendado.razon}).`
+    : '';
+  aviso.textContent = en_vivo
+    ? notaRecomendacion
+    : [msg || 'Usando lista de respaldo (sin consulta en vivo).', notaRecomendacion].filter(Boolean).join(' ');
+}
+
+async function guardarModelo(tarea) {
+  const proveedor = document.querySelector(`[data-proveedor-tarea="${tarea}"]`).value;
+  const modelo = document.querySelector(`[data-modelo-tarea="${tarea}"]`).value;
+  await api('/api/config/modelos', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({tarea, proveedor, modelo})
+  });
+}
+
+// ---------- Voz de video ----------
+let vocesState = {actual: null, disponibles: []};
+let filtroCategoria = 'personalizadas';
+
+const CATEGORIA_LABEL = {
+  personalizadas: 'Mis voces', premade: 'Predefinidas', todas: 'Todas',
+};
+
+async function cargarVoces() {
+  const {data} = await api('/api/config/voces');
+  vocesState = data;
+  if (data.error && !data.disponibles.length) {
+    document.getElementById('voces').innerHTML = `<p class="text-xs" style="color:var(--fg-muted)">${data.error}</p>`;
+    document.getElementById('voz-filtro-categoria').innerHTML = '';
+    return;
+  }
+  const hayPersonalizadas = data.disponibles.some(v => v.categoria !== 'premade');
+  if (!hayPersonalizadas) filtroCategoria = 'todas';
+  pintarFiltroCategoria();
+  pintarVoces();
+}
+
+function pintarFiltroCategoria() {
+  const el = document.getElementById('voz-filtro-categoria');
+  el.innerHTML = ['personalizadas', 'premade', 'todas'].map(cat => `
+    <button data-cat="${cat}"
+      class="rounded-lg px-2.5 min-h-[36px] text-xs font-medium border transition-colors"
+      style="${cat === filtroCategoria ? 'border-color:var(--accent); background:var(--accent-soft)' : 'border-color:var(--border); opacity:.6'}">
+      ${CATEGORIA_LABEL[cat]}
+    </button>`).join('');
+  el.querySelectorAll('[data-cat]').forEach(btn => btn.onclick = () => {
+    filtroCategoria = btn.dataset.cat;
+    pintarFiltroCategoria();
+    pintarVoces();
+  });
+}
+
+function pintarVoces() {
+  const genero = document.getElementById('voz-filtro-genero').value;
+  let lista = vocesState.disponibles;
+  if (filtroCategoria === 'personalizadas') lista = lista.filter(v => v.categoria !== 'premade');
+  else if (filtroCategoria === 'premade') lista = lista.filter(v => v.categoria === 'premade');
+  if (genero) lista = lista.filter(v => v.genero === genero);
+
+  const el = document.getElementById('voces');
+  if (!lista.length) {
+    el.innerHTML = `<p class="text-xs py-2" style="color:var(--fg-muted)">
+      ${filtroCategoria === 'personalizadas'
+        ? 'No tenés voces personalizadas/clonadas todavía en tu cuenta de ElevenLabs. Cloná una allá y va a aparecer acá, o pegá su Voice ID abajo.'
+        : 'Sin voces para este filtro.'}
+    </p>`;
+    return;
+  }
+  el.innerHTML = lista.map(v => `
+    <div class="flex items-center gap-3 rounded-lg p-2.5 border"
+      style="border-color:${v.voice_id === vocesState.actual.voice_id ? 'var(--accent)' : 'var(--border)'}">
+      <button data-elegir-voz="${v.voice_id}" data-nombre-voz="${v.nombre}"
+        class="flex items-center gap-2 flex-1 text-left text-sm min-w-0">
+        <span class="inline-block w-4 h-4 rounded-full border shrink-0" style="border-color:var(--accent); ${v.voice_id === vocesState.actual.voice_id ? 'background:var(--accent)' : ''}"></span>
+        <span class="truncate">${v.nombre}</span>
+        <span class="text-xs shrink-0" style="color:var(--fg-muted)">${v.categoria}${v.genero ? ' · ' + v.genero : ''}</span>
+      </button>
+      ${v.preview_url ? `<audio controls src="${v.preview_url}" class="h-8 shrink-0" style="max-width:160px"></audio>` : ''}
+    </div>`).join('');
+
+  el.querySelectorAll('[data-elegir-voz]').forEach(btn => btn.onclick = async () => {
+    await guardarVoz(btn.dataset.elegirVoz, btn.dataset.nombreVoz);
+  });
+}
+
+async function guardarVoz(voice_id, nombre) {
+  await api('/api/config/voces', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({voice_id, nombre})
+  });
+  cargarVoces();
+}
+
+document.getElementById('voz-filtro-genero').onchange = pintarVoces;
+document.getElementById('voz-usar-manual').onclick = () => {
+  const id = document.getElementById('voz-id-manual').value.trim();
+  const nombre = document.getElementById('voz-nombre-manual').value.trim() || id;
+  if (id) guardarVoz(id, nombre);
+};
+
+// ---------- Perfiles de marca ----------
+let marcasState = {}, perfilActivo = 'andres_duque';
+
+async function cargarMarcas() {
+  const {data} = await api('/api/brands');
+  marcasState = data;
+  const tabs = document.getElementById('marca-tabs');
+  tabs.innerHTML = Object.entries(data).map(([id, b]) => `
+    <button data-tab-marca="${id}"
+      class="rounded-lg px-3 min-h-[36px] text-xs font-medium border transition-colors"
+      style="${id===perfilActivo ? `border-color:${b.primary_color}; background:${b.primary_color}26` : 'border-color:var(--border); opacity:.5'}">
+      ${b.brand_name}
+    </button>`).join('');
+  tabs.querySelectorAll('[data-tab-marca]').forEach(btn => btn.onclick = () => {
+    perfilActivo = btn.dataset.tabMarca;
+    cargarMarcas();
+  });
+  pintarMarcaForm();
+}
+
+function pintarMarcaForm() {
+  const b = marcasState[perfilActivo];
+  const form = document.getElementById('marca-form');
+  form.innerHTML = `
+    <div class="grid grid-cols-2 gap-3">
+      <label class="space-y-1 col-span-2">
+        <span class="text-xs" style="color:var(--fg-muted)">Nombre de marca</span>
+        <input id="m-nombre" value="${b.brand_name}" class="w-full min-h-[40px] rounded-lg px-3 text-sm border" style="border-color:var(--border)">
+      </label>
+      <label class="space-y-1">
+        <span class="text-xs" style="color:var(--fg-muted)">Color primario</span>
+        <div class="flex gap-2 items-center">
+          <input id="m-primary" type="color" value="${b.primary_color}" class="h-10 w-12 rounded-lg border p-1" style="border-color:var(--border)">
+          <input id="m-primary-hex" value="${b.primary_color}" class="flex-1 min-h-[40px] rounded-lg px-3 text-sm border mono" style="border-color:var(--border)">
+        </div>
+      </label>
+      <label class="space-y-1">
+        <span class="text-xs" style="color:var(--fg-muted)">Color secundario</span>
+        <div class="flex gap-2 items-center">
+          <input id="m-secondary" type="color" value="${b.secondary_color}" class="h-10 w-12 rounded-lg border p-1" style="border-color:var(--border)">
+          <input id="m-secondary-hex" value="${b.secondary_color}" class="flex-1 min-h-[40px] rounded-lg px-3 text-sm border mono" style="border-color:var(--border)">
+        </div>
+      </label>
+      <label class="space-y-1">
+        <span class="text-xs" style="color:var(--fg-muted)">Color de acento</span>
+        <div class="flex gap-2 items-center">
+          <input id="m-accent" type="color" value="${b.accent_color}" class="h-10 w-12 rounded-lg border p-1" style="border-color:var(--border)">
+          <input id="m-accent-hex" value="${b.accent_color}" class="flex-1 min-h-[40px] rounded-lg px-3 text-sm border mono" style="border-color:var(--border)">
+        </div>
+      </label>
+      <label class="space-y-1">
+        <span class="text-xs" style="color:var(--fg-muted)">CTA por defecto</span>
+        <input id="m-cta" value="${b.cta_default}" class="w-full min-h-[40px] rounded-lg px-3 text-sm border" style="border-color:var(--border)">
+      </label>
+      <label class="space-y-1 col-span-2">
+        <span class="text-xs" style="color:var(--fg-muted)">Tono de voz</span>
+        <textarea id="m-tono" rows="2" class="w-full rounded-lg px-3 py-2 text-sm border" style="border-color:var(--border)">${b.tone_of_voice}</textarea>
+      </label>
+      <label class="space-y-1 col-span-2">
+        <span class="text-xs" style="color:var(--fg-muted)">Audiencia</span>
+        <input id="m-audiencia" value="${b.target_audience}" class="w-full min-h-[40px] rounded-lg px-3 text-sm border" style="border-color:var(--border)">
+      </label>
+      <label class="space-y-1 col-span-2">
+        <span class="text-xs" style="color:var(--fg-muted)">Hashtags base (separados por coma)</span>
+        <input id="m-hashtags" value="${b.hashtags_base.join(', ')}" class="w-full min-h-[40px] rounded-lg px-3 text-sm border" style="border-color:var(--border)">
+      </label>
+    </div>
+    <div class="flex items-center gap-2 pt-1">
+      <button id="m-guardar" class="min-h-[40px] rounded-lg px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90" style="background:var(--accent)">Guardar perfil</button>
+      <span id="m-status" class="text-xs" style="color:var(--fg-muted)"></span>
+    </div>`;
+
+  const syncColor = (color, hex) => {
+    document.getElementById(color).oninput = () => document.getElementById(hex).value = document.getElementById(color).value;
+    document.getElementById(hex).oninput = () => {
+      if (/^#[0-9a-fA-F]{6}$/.test(document.getElementById(hex).value))
+        document.getElementById(color).value = document.getElementById(hex).value;
+    };
+  };
+  syncColor('m-primary', 'm-primary-hex');
+  syncColor('m-secondary', 'm-secondary-hex');
+  syncColor('m-accent', 'm-accent-hex');
+
+  document.getElementById('m-guardar').onclick = async () => {
+    const status = document.getElementById('m-status');
+    status.textContent = 'Guardando…';
+    const {ok} = await api(`/api/config/marcas/${perfilActivo}`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        brand_name: document.getElementById('m-nombre').value,
+        primary_color: document.getElementById('m-primary-hex').value,
+        secondary_color: document.getElementById('m-secondary-hex').value,
+        accent_color: document.getElementById('m-accent-hex').value,
+        tone_of_voice: document.getElementById('m-tono').value,
+        target_audience: document.getElementById('m-audiencia').value,
+        cta_default: document.getElementById('m-cta').value,
+        hashtags_base: document.getElementById('m-hashtags').value.split(',').map(h => h.trim()).filter(Boolean),
+      })
+    });
+    status.textContent = ok ? 'Guardado ✓' : 'Error al guardar';
+    if (ok) cargarMarcas();
+  };
+}
+
+// ---------- Gastos ----------
+let gastoLimite = 5;
+let gastoFiltros = {herramienta: '', tarea: ''};
+
+async function cargarGastos() {
+  const params = new URLSearchParams({...gastoFiltros, limite: gastoLimite});
+  const {data} = await api(`/api/config/gastos?${params}`);
+  document.getElementById('gasto-total').textContent = `$${data.total_usd.toFixed(4)} USD`;
+
+  // Filtros — se repueblan con las opciones reales que existan, preservando la selección.
+  const selHerr = document.getElementById('gasto-filtro-herramienta');
+  const selTarea = document.getElementById('gasto-filtro-tarea');
+  if (!selHerr.dataset.listo) {
+    selHerr.innerHTML = `<option value="">Toda herramienta</option>` +
+      data.herramientas.map(h => `<option value="${h}">${h}</option>`).join('');
+    selTarea.innerHTML = `<option value="">Toda tarea</option>` +
+      data.tareas.map(t => `<option value="${t}">${t}</option>`).join('');
+    selHerr.dataset.listo = '1'; selTarea.dataset.listo = '1';
+    selHerr.onchange = () => { gastoFiltros.herramienta = selHerr.value; gastoLimite = 5; cargarGastos(); };
+    selTarea.onchange = () => { gastoFiltros.tarea = selTarea.value; gastoLimite = 5; cargarGastos(); };
+  }
+
+  const resumenEl = document.getElementById('gastos-resumen');
+  resumenEl.innerHTML = data.por_herramienta.length ? `<div class="overflow-x-auto">
+    <table class="text-sm">
+      <thead><tr><th>Herramienta</th><th>Llamadas</th><th>Tokens in</th><th>Tokens out</th><th>Costo USD</th></tr></thead>
+      <tbody>${data.por_herramienta.map(h => `
+        <tr>
+          <td>${h.herramienta}</td><td class="mono">${h.llamadas}</td>
+          <td class="mono">${h.tokens_entrada.toLocaleString()}</td>
+          <td class="mono">${h.tokens_salida.toLocaleString()}</td>
+          <td class="mono">$${h.costo_usd.toFixed(4)}</td>
+        </tr>`).join('')}</tbody>
+    </table></div>` : '';
+
+  const el = document.getElementById('gastos');
+  const conteo = document.getElementById('gastos-conteo');
+  const verMas = document.getElementById('gastos-ver-mas');
+  if (!data.recientes.length) {
+    el.innerHTML = `<p class="text-xs py-2" style="color:var(--fg-muted)">Sin llamadas para este filtro.</p>`;
+    conteo.textContent = ''; verMas.classList.add('hidden');
+    return;
+  }
+  el.innerHTML = data.recientes.map(r => `
+    <div class="flex items-center gap-2 rounded-lg p-2.5 border text-xs" style="border-color:var(--border)">
+      <span class="mono shrink-0" style="color:var(--fg-muted)">${r.fecha}</span>
+      <span class="font-medium shrink-0">${r.herramienta}</span>
+      <span class="mono truncate flex-1" style="color:var(--fg-muted)">${r.modelo} · ${r.tarea}</span>
+      <span class="mono shrink-0">$${r.costo_usd.toFixed(4)}</span>
+      <button data-borrar-gasto="${r.id}" aria-label="Borrar registro"
+        class="shrink-0 rounded p-1 transition-colors hover:text-red-400" style="color:var(--fg-muted)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>`).join('');
+
+  conteo.textContent = `Mostrando ${data.recientes.length} de ${data.total_filtradas}`;
+  verMas.classList.toggle('hidden', data.recientes.length >= data.total_filtradas);
+  verMas.onclick = () => { gastoLimite += 10; cargarGastos(); };
+
+  el.querySelectorAll('[data-borrar-gasto]').forEach(btn => btn.onclick = async () => {
+    await api(`/api/config/gastos/${btn.dataset.borrarGasto}`, {method: 'DELETE'});
+    cargarGastos();
+  });
+}
+
+document.getElementById('gasto-vaciar').onclick = async () => {
+  if (!confirm('¿Vaciar todo el historial de gastos? No se puede deshacer.')) return;
+  await api('/api/config/gastos', {method: 'DELETE'});
+  gastoLimite = 5;
+  cargarGastos();
+};
+
+// ---------- Errores ----------
+async function cargarErrores() {
+  const {data} = await api('/api/config/errores');
+  const el = document.getElementById('errores');
+  if (!data.length) {
+    el.innerHTML = `<p class="text-xs" style="color:var(--fg-muted)">Sin errores registrados. Buena señal.</p>`;
+    return;
+  }
+  el.innerHTML = data.map(e => `
+    <div class="rounded-lg p-3 text-xs" style="background:var(--surface-2)">
+      <div class="flex items-center gap-2 mb-1" style="color:var(--fg-muted)">
+        <span class="mono">${e.fecha}</span>
+        <span class="rounded px-1.5 py-0.5 border" style="border-color:var(--border)">${e.contexto}</span>
+      </div>
+      <p>${e.mensaje}</p>
+    </div>`).join('');
+}
+
+document.getElementById('limpiar-errores').onclick = async () => {
+  await api('/api/config/errores', {method: 'DELETE'});
+  cargarErrores();
+};
+
+(async () => {
+  cargarClaves();
+  cargarModelos();
+  cargarVoces();
+  cargarMarcas();
+  cargarGastos();
+  cargarErrores();
+})();
+</script>
+</body>
+</html>

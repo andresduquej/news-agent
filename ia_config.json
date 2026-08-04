@@ -1,0 +1,14 @@
+{
+  "ranking": {
+    "proveedor": "gemini",
+    "modelo": "gemini-2.5-flash"
+  },
+  "generacion": {
+    "proveedor": "gemini",
+    "modelo": "gemini-2.5-flash"
+  },
+  "resumen": {
+    "proveedor": "gemini",
+    "modelo": "gemini-2.5-flash"
+  }
+}

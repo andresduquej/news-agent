@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Historial — Agente de Contenido</title>
+<link rel="stylesheet" href="/assets/local.css">
+<script src="/assets/loading-overlay.js" defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;600&family=Fira+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050507; --surface: #0d0d12; --surface-2: #14141b; --border: #23232e;
+  --fg: #ececf1; --fg-muted: #8b8b99; --accent: #3956FA; --accent-soft: #3956fa26;
+}
+* { font-family: 'Fira Sans', system-ui, sans-serif; }
+body { background: var(--bg); color: var(--fg); }
+.mono { font-family: 'Fira Code', monospace; font-variant-numeric: tabular-nums; }
+.card { background: var(--surface); border: 1px solid var(--border); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { cursor: pointer; }
+.skeleton { background: var(--surface-2); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { *, .skeleton { animation: none !important; } }
+</style>
+</head>
+<body class="min-h-screen">
+<main class="max-w-3xl mx-auto px-4 py-6 space-y-5">
+
+  <header class="flex items-center gap-3">
+    <a href="/" aria-label="Volver al dashboard"
+      class="flex items-center justify-center h-10 w-10 rounded-lg border transition-colors hover:border-[var(--accent)]"
+      style="border-color:var(--border)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </a>
+    <h1 class="text-lg font-bold tracking-tight">Historial de contenido</h1>
+    <span id="conteo" class="mono text-xs ml-auto" style="color:var(--fg-muted)"></span>
+  </header>
+
+  <section class="card rounded-xl p-4 space-y-3">
+    <div class="flex items-center justify-between gap-2 flex-wrap">
+      <h2 class="text-sm font-semibold">📊 Matriz de viralidad</h2>
+      <div class="flex items-center gap-2">
+        <select id="matriz-perfil" class="rounded-lg px-2 py-1.5 text-xs border" style="border-color:var(--border)"></select>
+        <button id="matriz-generar" class="text-xs font-semibold rounded-lg px-3 py-1.5 text-white" style="background:var(--accent)">Generar / actualizar</button>
+      </div>
+    </div>
+    <p class="text-xs" style="color:var(--fg-muted)">Compara las piezas con más engagement contra las de menos (usando las métricas que cargaste abajo) y detecta qué hooks/temas/estructura/CTA se repiten en lo que mejor funcionó.</p>
+    <div id="matriz-resultado" class="text-xs" style="color:var(--fg-muted)">Todavía no se generó ninguna matriz para este perfil.</div>
+  </section>
+
+  <section id="lista" class="space-y-3" aria-live="polite">
+    <div class="skeleton rounded-xl h-32"></div>
+  </section>
+
+</main>
+<script>
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  return {ok: r.ok, data: await r.json()};
+}
+
+const FORMATO_ICON = {
+  video: 'M23 7l-7 5 7 5V7zM1 5h15v14H1z',
+  imagen: 'M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM21 15l-5-5L5 21',
+  carrusel: 'M8 3H4a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h4M16 3h4a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-4M10 5h4v14h-4z',
+};
+
+function miniatura(e) {
+  if (!e.archivos.length) return '';
+  if (e.archivos.length === 1 && e.archivos[0].endsWith('.mp4'))
+    return `<video src="${e.archivos[0]}" class="rounded-lg w-full max-h-72 object-contain" style="background:var(--surface-2)" controls preload="metadata"></video>`;
+  // Carrusel: puede mezclar imagen y video por lámina (láminas producidas como video corto).
+  return `<div class="flex gap-2 overflow-x-auto pb-1">${e.archivos.map(a => a.endsWith('.mp4')
+    ? `<video src="${a}" class="rounded-lg h-40 border shrink-0" style="border-color:var(--border)" controls preload="metadata"></video>`
+    : `<a href="${a}" target="_blank"><img src="${a}" class="rounded-lg h-40 border shrink-0" style="border-color:var(--border)" alt="Producción"></a>`
+  ).join('')}</div>`;
+}
+
+function bloqueMetricas(e, metricas) {
+  const m = metricas[e.id];
+  const CAMPOS = [['likes', '❤️'], ['comentarios', '💬'], ['guardados', '🔖'], ['compartidos', '↗️'], ['alcance', '👁️']];
+  return `
+    <details class="text-xs" style="color:var(--fg-muted)">
+      <summary class="cursor-pointer hover:underline">
+        📊 ${m ? CAMPOS.map(([k, ic]) => `${ic} ${m[k]}`).join('  ') : 'Registrar métricas'}
+      </summary>
+      <form data-metricas-form="${e.id}" class="flex gap-1.5 flex-wrap items-center pt-2">
+        ${CAMPOS.map(([k, ic]) => `
+          <label class="flex items-center gap-1">
+            <span>${ic}</span>
+            <input type="number" min="0" name="${k}" value="${m ? m[k] : 0}"
+              class="w-16 rounded-lg px-1.5 py-1 text-xs bg-transparent border" style="border-color:var(--border)">
+          </label>`).join('')}
+        <button type="submit" class="text-xs font-semibold rounded-lg px-2.5 py-1 text-white" style="background:var(--accent)">Guardar</button>
+      </form>
+    </details>`;
+}
+
+function pintarMatriz(m) {
+  const cont = document.getElementById('matriz-resultado');
+  if (!m || !m.resumen) {
+    cont.innerHTML = 'Todavía no se generó ninguna matriz para este perfil.';
+    return;
+  }
+  const CATEGORIAS = [
+    ['hooks', 'Hooks'], ['temas', 'Temas'], ['estructuras', 'Estructuras'],
+    ['frases', 'Frases/palabras'], ['ctas', 'CTAs'],
+  ];
+  cont.innerHTML = `
+    <p class="text-sm font-medium mb-2" style="color:var(--fg)">${m.resumen}</p>
+    <p class="mono text-[10px] mb-3">Generada ${m.fecha_generada} · ${m.piezas_analizadas} piezas analizadas</p>
+    ${CATEGORIAS.map(([k, label]) => (m[k] || []).length ? `
+      <div class="mb-2">
+        <p class="font-semibold" style="color:var(--fg)">${label}</p>
+        <ul class="list-disc pl-4 space-y-1">
+          ${m[k].map(p => `<li><b style="color:var(--fg)">${p.patron}</b> — ${p.evidencia}</li>`).join('')}
+        </ul>
+      </div>` : '').join('')}
+    ${m.duracion_o_extension_optima ? `<p><b style="color:var(--fg)">Duración/extensión óptima:</b> ${m.duracion_o_extension_optima}</p>` : ''}`;
+}
+
+async function cargarBrandsMatriz() {
+  const {data} = await api('/api/brands');
+  const sel = document.getElementById('matriz-perfil');
+  sel.innerHTML = Object.entries(data).map(([id, b]) => `<option value="${id}">${b.brand_name}</option>`).join('');
+  sel.onchange = cargarMatriz;
+  await cargarMatriz();
+}
+
+async function cargarMatriz() {
+  const perfil = document.getElementById('matriz-perfil').value;
+  const {data} = await api('/api/matriz?perfil=' + encodeURIComponent(perfil));
+  pintarMatriz(data);
+}
+
+document.getElementById('matriz-generar').onclick = async () => {
+  const btn = document.getElementById('matriz-generar');
+  const perfil = document.getElementById('matriz-perfil').value;
+  const cont = document.getElementById('matriz-resultado');
+  btn.disabled = true;
+  mostrarCargando('Generando matriz de viralidad…');
+  cont.innerHTML = '<div class="skeleton rounded-lg h-16"></div>';
+  const {ok, data} = await api('/api/matriz/generar', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({perfil})
+  });
+  if (!ok) {
+    cont.innerHTML = `<p>${data.error || 'No se pudo generar la matriz.'}</p>`;
+  } else {
+    pintarMatriz(data);
+  }
+  btn.disabled = false;
+  completarCargando();
+};
+
+cargarBrandsMatriz();
+
+function scoreDe(m) {
+  return m ? m.likes + m.comentarios * 3 + m.guardados * 2 + m.compartidos * 2 : -1;
+}
+
+function promedioAjeno(idExcluir, scoresGlobales) {
+  const otros = scoresGlobales.filter(s => s.id !== idExcluir);
+  if (!otros.length) return null;
+  return otros.reduce((acc, s) => acc + s.score, 0) / otros.length;
+}
+
+function bloquePrediccionVsReal(e, metricas, scoresGlobales) {
+  if (!e.prediccion && !metricas[e.id]) return '';
+  const m = metricas[e.id];
+  const promedio = m ? promedioAjeno(e.id, scoresGlobales) : null;
+  const scorePropio = m ? scoreDe(m) : null;
+  let comparacion = '';
+  if (m && promedio != null) {
+    const arriba = scorePropio >= promedio;
+    comparacion = `<p class="text-xs mt-1" style="color:${arriba ? '#22c55e' : '#ef4444'}">
+      ${arriba ? '📈' : '📉'} Resultado (${scorePropio}) ${arriba ? 'por encima' : 'por debajo'} de tu promedio (${promedio.toFixed(0)})
+    </p>`;
+  }
+  return `
+    <div class="text-xs rounded-lg p-2" style="background:var(--surface-2)">
+      ${e.prediccion ? `<p><b style="color:var(--fg)">🔮 Predicción:</b> ${e.prediccion}</p>` : ''}
+      ${comparacion}
+    </div>`;
+}
+
+function tarjetaEntry(e, metricas, esGanador, scoresGlobales) {
+  return `
+    <article class="card rounded-xl p-4 space-y-3 ${esGanador ? 'ring-2' : ''}" style="${esGanador ? 'box-shadow:0 0 0 2px var(--accent)' : ''}">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 text-xs mb-1" style="color:var(--fg-muted)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="${FORMATO_ICON[e.formato]||''}"/></svg>
+            <span>${e.formato}</span>
+            ${e.tema ? `<span aria-hidden="true">·</span><span>${e.tema}</span>` : ''}
+            <span aria-hidden="true">·</span><span class="mono">${e.fecha}</span>
+            ${esGanador ? `<span aria-hidden="true">·</span><span style="color:var(--accent)">🏆 Ganador</span>` : ''}
+          </div>
+          <h3 class="font-semibold leading-snug text-[15px] truncate">${e.titulo}</h3>
+          ${e.test_variante ? `<p class="text-xs mt-0.5" style="color:var(--accent)">${e.test_variante}</p>` : ''}
+        </div>
+        <button data-borrar="${e.id}" aria-label="Eliminar del historial"
+          class="shrink-0 rounded-lg p-2 border transition-colors hover:border-red-400" style="border-color:var(--border); color:var(--fg-muted)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+        </button>
+      </div>
+      ${miniatura(e)}
+      ${e.caption ? `<p class="text-xs leading-relaxed" style="color:var(--fg-muted)">${e.caption}</p>` : ''}
+      ${e.hashtags?.length ? `<p class="text-xs" style="color:var(--accent)">${e.hashtags.join(' ')}</p>` : ''}
+      ${bloquePrediccionVsReal(e, metricas, scoresGlobales)}
+      ${bloqueMetricas(e, metricas)}
+    </article>`;
+}
+
+function tarjetaTest(entradas, metricas, scoresGlobales) {
+  const conMetricas = entradas.filter(e => metricas[e.id]);
+  const ganadorId = conMetricas.length >= 2
+    ? conMetricas.reduce((a, b) => scoreDe(metricas[a.id]) >= scoreDe(metricas[b.id]) ? a : b).id
+    : null;
+  return `
+    <div class="rounded-xl border-2 p-3 space-y-3" style="border-color:var(--accent)">
+      <p class="text-xs font-semibold" style="color:var(--accent)">🧪 Test de variantes — ${entradas.length} piezas${conMetricas.length < 2 ? ' (cargá métricas en al menos 2 para ver el ganador)' : ''}</p>
+      <div class="space-y-3">
+        ${entradas.map(e => tarjetaEntry(e, metricas, e.id === ganadorId, scoresGlobales)).join('')}
+      </div>
+    </div>`;
+}
+
+async function cargar() {
+  const {data} = await api('/api/history');
+  const {data: metricas} = await api('/api/metricas');
+  const lista = document.getElementById('lista');
+  document.getElementById('conteo').textContent = data.length ? `${data.length} pieza${data.length>1?'s':''}` : '';
+  if (!data.length) {
+    lista.innerHTML = `<div class="card rounded-xl p-10 text-center space-y-2">
+      <p class="text-sm font-medium">Todavía no produjiste nada</p>
+      <p class="text-xs" style="color:var(--fg-muted)">Cuando generes y produzcas un video, carrusel o imagen desde el dashboard, va a aparecer acá.</p>
+      <a href="/" class="inline-block mt-2 text-sm font-semibold rounded-lg px-4 py-2 text-white" style="background:var(--accent)">Ir al dashboard</a>
+    </div>`;
+    return;
+  }
+
+  // Score de TODAS las piezas con métricas cargadas — sirve como "tu
+  // promedio propio" contra el que se compara cada resultado individual
+  // (nunca contra benchmarks externos).
+  const scoresGlobales = data.filter(e => metricas[e.id]).map(e => ({id: e.id, score: scoreDe(metricas[e.id])}));
+
+  const tests = {};
+  const sueltas = [];
+  for (const e of data) {
+    if (e.test_id) (tests[e.test_id] ||= []).push(e);
+    else sueltas.push(e);
+  }
+
+  lista.innerHTML = [
+    ...Object.values(tests).map(entradas => tarjetaTest(entradas, metricas, scoresGlobales)),
+    ...sueltas.map(e => tarjetaEntry(e, metricas, false, scoresGlobales)),
+  ].join('');
+
+  lista.querySelectorAll('[data-borrar]').forEach(btn => btn.onclick = async () => {
+    if (!confirm('¿Eliminar esta pieza del historial? Se borran también sus archivos.')) return;
+    await api(`/api/history/${btn.dataset.borrar}`, {method: 'DELETE'});
+    cargar();
+  });
+
+  lista.querySelectorAll('[data-metricas-form]').forEach(form => form.onsubmit = async (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(form);
+    const body = Object.fromEntries(['likes', 'comentarios', 'guardados', 'compartidos', 'alcance']
+      .map(k => [k, +fd.get(k) || 0]));
+    await api(`/api/metricas/${form.dataset.metricasForm}`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    cargar();
+  });
+}
+
+cargar();
+</script>
+</body>
+</html>

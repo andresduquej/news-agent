@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+playwright
+feedparser
+requests
+anthropic
+beautifulsoup4
+python-multipart
