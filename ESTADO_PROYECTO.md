@@ -648,6 +648,132 @@ conviene según el caso), Voz de ElevenLabs (filtrable, o Voice ID manual),
 Perfiles de marca editables, Gastos (tokens/USD, filtro, últimos 5,
 descarga CSV, borrado), Errores (log + limpiar).
 
+## Reestructuración grande del pipeline de video (1-5 ago 2026)
+
+Sesión larga, arrancó arreglando el ritmo de corte y terminó reescribiendo
+buena parte de `video_producer.py`. En orden:
+
+1. **B-roll con múltiples tomas por tramo** (`video_producer._tomas_por_tramo()`,
+   luego reemplazado — ver punto 4): primer fix del "descuadrado" que venía
+   de antes (30 jul) — cada tramo pasó a tener varias tomas de Pexels (~1
+   cada 2.5s) en vez de una sola fija.
+
+2. **Subtítulos completos, no chips curados por IA**: Andrés reportó que no
+   aparecía "todo lo que está narrando la persona" — el sistema viejo
+   (`texto_pantalla`, 1 frase por tramo generada por la IA) solo mostraba
+   frases sueltas. Fix intermedio: se dejó de pedirle texto a la IA para
+   esto y se usó `voz_elevenlabs_con_timestamps()` (nuevo en
+   `test_video_pipeline.py`, endpoint `/v1/text-to-speech/{id}/with-timestamps`
+   de ElevenLabs — devuelve alignment carácter-por-carácter real) para
+   armar subtítulos en bloques de 4 palabras cubriendo el guion completo.
+
+3. **Pedido: separar por ORACIÓN, no por conteo fijo de palabras** — Andrés
+   pidió que cada cartel sea una frase real (corte en el punto) y que el
+   B-roll cambie de toma en ese mismo límite ("a medida que separa las
+   frases, ese es el tiempo que permanece la escena"). Encontramos que
+   **este patrón ya estaba resuelto en `avatarhype-studio/subtitulos.py`**
+   (proyecto hermano) — se portó a `news_agent/subtitulos_ass.py`, adaptado
+   para usar el alignment de ElevenLabs en vez de transcribir con
+   faster-whisper (no hace falta, ya tenemos el timing real). Genera un
+   `.ass` con libass: una línea de diálogo por palabra dentro de cada
+   oración, coloreando SOLO la palabra activa con el acento de marca
+   (efecto karaoke, no acumulativo) — quemado con el filtro `subtitles` de
+   ffmpeg como POST-PROCESO (ya no PNGs vía Playwright para esto).
+   `video_producer._oraciones_por_tramo()` reparte el alignment global
+   entre hook/obstaculo/ejecucion/cta por conteo de palabras y agrupa cada
+   porción en oraciones (corta en `. ! ? …`, tope de seguridad de 25
+   palabras para texto sin puntuación). El B-roll ahora cambia de toma en
+   esos mismos límites (`_tomas_broll_desde_oraciones`, luego
+   `_tomas_broll_desde_limites`).
+
+4. **Bug real encontrado por Andrés — el video se cortaba antes de que
+   terminara la narración**: cada oración por sí sola solo cubre desde el
+   inicio de su primera palabra hasta el fin de su última — sumar esas
+   duraciones para decidir cuánto dura el video total (`-t dur_total` en
+   `ensamblar_multi_broll`) IGNORABA las micro-pausas entre oraciones y
+   entre tramos. Con un guion de varias oraciones esto perdía segundos
+   reales (probado con datos sintéticos: 2.7s perdidos de 8.9s, un 30%).
+   Fix: `_limites_oraciones_sin_huecos()` — el fin efectivo de cada oración
+   es el INICIO de la oración siguiente (mismo criterio ya aplicado a los
+   subtítulos para que no parpadeen entre palabras), y la última oración de
+   todo el guion se extiende hasta la duración REAL del archivo de audio
+   (ffprobe). Verificado con datos sintéticos (suma exacta) y con un video
+   real (13.15s de video vs 13.19s de voz real — diferencia de 40ms, el
+   delay antes de la primera palabra).
+
+5. **Diseño visual del subtítulo, iterado con capturas** (probado sobre un
+   fondo gris sintético + alignment simulado, sin gastar créditos): tamaño
+   final 105pt (el doble del original 46pt), posicionado a un cuarto de
+   pantalla desde abajo (`MarginV = video_h // 4` en `subtitulos_ass.py`,
+   dinámico según resolución). Bug de diseño encontrado y arreglado en la
+   misma ronda: el cartel parpadeaba (desaparecía y volvía a aparecer)
+   entre palabras si había una micro-pausa en el alignment — mismo fix que
+   el punto 4 pero a nivel palabra: el fin de cada línea de diálogo es el
+   inicio de la palabra siguiente, no el fin real de la palabra activa.
+   Fuente: Poppins (copiada de `avatarhype-studio/fonts/` a
+   `news_agent/fonts/` — libass necesita el `.ttf` local, no puede usar
+   Google Fonts vía CSS import como hace Playwright para las láminas).
+
+6. **B-roll con clips irrelevantes** — un video de prueba sobre
+   "automatizaciones para redes sociales" trajo, para la query
+   `ai content creation latin american`, un clip de maquillaje de Catrina/
+   Día de Muertos totalmente fuera de tema. Investigado a fondo: NI SIQUIERA
+   el resultado #0 (el más relevante según Pexels) era bueno para esa query
+   — el problema no era "buscar demasiado lejos en el ranking", era que la
+   query en sí es un concepto abstracto de marketing sin buen stock en
+   Pexels. Fix real: `generator_ia.py` ahora instruye a la IA a pedir
+   queries CONCRETAS y fotografiables (objetos/acciones tangibles como
+   "hands typing laptop schedule"), nunca conceptos abstractos — verificado
+   contra la API de Pexels directa (6/6 resultados relevantes con queries
+   concretas vs. fallando desde el resultado #0 con la abstracta). Además,
+   resguardo general en `test_video_pipeline.broll_pexels()`:
+   `TOPE_RELEVANCIA = 6` — si un tramo pide más tomas que eso de la misma
+   query, cicla entre los primeros 6 resultados en vez de seguir bajando en
+   el ranking de Pexels.
+
+7. **Dashboard roto — CDN de Tailwind sin respaldo local**: Andrés reportó
+   la interfaz "desfasada"/rota. Investigación larga (mi panel sandboxeado
+   no tiene internet en absoluto — confirmado con `curl`/`fetch`, por eso
+   ahí siempre se veía roto) pero el usuario confirmó que en SU Chrome real
+   también se veía mal (logo del selector de marca gigante, tapando todo).
+   Causa raíz: las 4 páginas del dashboard (`index.html`, `history.html`,
+   `config.html`, `calendario.html`) dependían 100% de
+   `<script src="https://cdn.tailwindcss.com">` sin ningún respaldo — si
+   ese script no carga (bloqueador, red, lo que sea) toda la interfaz pierde
+   estilos. Fix real y duradero (a pedido explícito de usar
+   `ui-ux-pro-max`): se generó `news_agent/assets/local.css` a mano con los
+   valores REALES de Tailwind v3 para las ~150 clases que el proyecto
+   realmente usa (extraídas con grep de las 4 páginas + su JS embebido), y
+   se reemplazó el `<script>` del CDN por `<link rel="stylesheet"
+   href="/assets/local.css">` en las 4 páginas. Cero cambios de HTML/JS —
+   solo CSS, verificado que toda la funcionalidad (clicks, tabs, forms)
+   sigue intacta. También se agregó `width="20" height="20"` nativos al
+   `<img>` del logo del selector de marca (defensa adicional aunque ya no
+   dependa del CDN).
+
+8. **Animación de carga global**: pedido explícito — overlay con el logo
+   circular de Andrés Duque + anillo girando mientras procesa, check verde
+   al completar, luego se desvanece. `news_agent/assets/loading-overlay.js`
+   (un solo archivo, se inyecta una vez, expone
+   `window.mostrarCargando(mensaje)` / `completarCargando()` /
+   `cancelarCargando()`), cableado en las 11 acciones de procesamiento real
+   (generar contenido, IA, video, matriz de viralidad, etc.) de las 4
+   páginas — NO en micro-acciones instantáneas como guardar 1 tema o 1 API
+   key, sería ruido visual.
+
+9. **Infraestructura del sistema (no del código)**: `ffmpeg` apareció
+   desinstalado a mitad de sesión (instalado vía un tap de Homebrew distinto
+   — `homebrew-ffmpeg/ffmpeg` — pero DESLINKEADO; `brew link ffmpeg` lo
+   arregló sin reinstalar nada). La key de ElevenLabs se quedó sin créditos
+   (0 de 10000) durante las pruebas — Andrés pegó una key nueva directo en
+   el chat, ya actualizada en `.env` (sumar a la lista de keys a rotar antes
+   de ir a producción, ver sección de pendientes técnicos).
+
+**Pendiente de esta ronda**: no se corrió ningún video real con el fix #6
+(queries concretas de B-roll) integrado — se validó el prompt contra la API
+de Pexels directa, pero no un video completo con contenido generado 100% por
+la IA (los últimos videos de prueba usaron guion+queries escritas a mano).
+
 ## Pendiente del roadmap (ver memoria `spec-agente-contenido-v2` para el detalle completo)
 
 En orden sugerido:
@@ -855,14 +981,25 @@ cubierto por `generator_ia.py` + variantes de hook.
 
 ## Pendiente técnico / seguridad
 
-- **Rotar las keys reales que se pegaron en el chat**: ElevenLabs (2 —
-  la original más una segunda pegada el 30 jul cuando la primera dio 401
-  por cuota agotada), Pexels, Gemini, Perplexity. Ninguna es free tier
-  real (son keys viejas del usuario) — cuando termine la fase de
-  pruebas, rotarlas desde cada plataforma y volver a pegarlas en
-  `/config`.
+- **Rotar las keys reales que se pegaron en el chat**: ElevenLabs (3 —
+  la original, una segunda el 30 jul, y una TERCERA el 4 ago cuando la
+  segunda se quedó sin créditos — 0 de 10000 — de tanto probar), Pexels,
+  Gemini, Perplexity. Ninguna es free tier real (son keys viejas del
+  usuario) — cuando termine la fase de pruebas, rotarlas desde cada
+  plataforma y volver a pegarlas en `/config`. **CRÍTICO antes de subir el
+  repo a cualquier lado público**: confirmar que `.env` esté en
+  `.gitignore` y nunca se haya commiteado.
 - Todavía no hay key real de Anthropic/Claude configurada (se probó y dio
   401 esperado con una key inválida de prueba).
+- **`fuente_texto` en `producir_video()` quedó sin efecto** desde la
+  reestructuración del 1-5 ago — libass necesita un `.ttf` local y solo
+  tenemos Poppins en `fonts/`. Si se quiere volver a soportar variar la
+  tipografía del subtítulo, hay que sumar más `.ttf` a esa carpeta.
+- **`extraer_frame_mejor_momento()` (historia-teaser) ya no puede evitar
+  el subtítulo al elegir un frame** — desde que el video quema subtítulos
+  completos (sin huecos), cualquier frame trae texto parcial quemado
+  abajo. No implementado: recortar esa franja al componer el frame de
+  fondo de la historia.
 
 ## Preferencias del usuario (para no perderlas)
 
@@ -881,3 +1018,23 @@ cubierto por `generator_ia.py` + variantes de hook.
   responsive, porque el usuario ve ese mismo panel y todo le queda diminuto.
   Si hace falta, volver a `preset: "desktop"` (tamaño nativo) apenas se
   termina la prueba.
+- **El panel del Browser (Claude Code) NO tiene salida a internet** —
+  confirmado con `curl`/`fetch` fallando resolución DNS (agosto 2026). Solo
+  puede llegar a `localhost`. Cualquier página que dependa de un CDN
+  externo (Tailwind, Google Fonts, etc.) se va a ver rota AHÍ aunque el
+  código esté perfecto — no asumir que es un bug real sin verificar
+  primero si el usuario lo ve roto en SU navegador real (con internet).
+- **Dashboard ya NO depende de `cdn.tailwindcss.com`** — usa
+  `news_agent/assets/local.css` (generado a mano, cubre las clases
+  Tailwind realmente usadas). Si se agrega una clase Tailwind nueva a
+  cualquiera de las 4 páginas del dashboard, hay que sumarla también a ese
+  CSS a mano — no hay build step ni compilador, es estático.
+- **`ffmpeg` puede aparecer "instalado pero no encontrado"** (visto el 4
+  ago 2026: instalado vía el tap `homebrew-ffmpeg/ffmpeg` pero
+  deslinkeado) — antes de reinstalar, probar `brew link ffmpeg` primero
+  (no destructivo).
+- **Subtítulos y B-roll del video comparten la misma agrupación por
+  oración** (`video_producer._oraciones_por_tramo()` /
+  `_limites_oraciones_sin_huecos()`) — si se toca el timing de uno, hay
+  que revisar el otro, están acoplados a propósito para que el corte de
+  escena y el cambio de cartel coincidan siempre.

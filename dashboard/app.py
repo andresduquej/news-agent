@@ -299,7 +299,8 @@ def producir_imagen(body: ProducirIn):
             for i in body.video_slides:
                 s = slides[i - 1]
                 destino = carpeta / f"slide_{i:02d}.mp4"
-                video_producer.producir_slide_video(s, brand, body.estilo_visual, destino)
+                video_producer.producir_slide_video(s, brand, body.estilo_visual, destino,
+                                                    perfil=body.contenido.get("perfil", ""))
                 gate = calidad_video.evaluar(destino)
                 if not gate["aprobado"]:
                     calidad_video.rechazar_archivo(destino)

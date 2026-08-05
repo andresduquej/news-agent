@@ -66,31 +66,44 @@ SCHEMAS = {
             "broll_query": {"type": "string",
                             "description": "2-4 palabras EN INGLÉS para buscar B-roll GENERAL — "
                                            "respaldo si falla alguna de las búsquedas específicas "
-                                           "por tramo de abajo. Si la escena incluye una persona, "
-                                           "agregá 'latin american' o 'hispanic' a la query (ej. "
-                                           "'latin american woman working laptop') — la audiencia es "
-                                           "LatAm, nunca dejes que el B-roll salga con gente que no "
-                                           "represente a la audiencia"},
+                                           "por tramo de abajo. CONCRETA Y FOTOGRAFIABLE: un objeto, "
+                                           "acción o escena real que Pexels tenga en stock — nunca un "
+                                           "concepto abstracto de marketing ('ai content creation', "
+                                           "'digital strategy') porque esas queries devuelven muy pocos "
+                                           "resultados relevantes y las tomas siguientes (2da, 3ra...) "
+                                           "salen random. Preferí objetos/acciones tangibles: 'phone "
+                                           "screen scrolling', 'hands typing laptop', 'calendar planner "
+                                           "desk'. Si la escena incluye una persona, agregá 'latin "
+                                           "american' o 'hispanic' a la query (ej. 'latin american woman "
+                                           "working laptop') — la audiencia es LatAm, nunca dejes que el "
+                                           "B-roll salga con gente que no represente a la audiencia"},
             "broll_query_hook": {"type": "string",
                                  "description": "2-4 palabras EN INGLÉS para el B-roll del tramo "
                                                 "HOOK — visualmente distinto de los otros 3 tramos, "
-                                                "coherente con lo que se dice en ESE momento. Si hay "
-                                                "una persona en escena, agregá 'latin american'/"
-                                                "'hispanic' a la query"},
+                                                "coherente con lo que se dice en ESE momento. Concreta "
+                                                "y fotografiable (ver broll_query), nunca un concepto "
+                                                "abstracto. Si hay una persona en escena, agregá 'latin "
+                                                "american'/'hispanic' a la query"},
             "broll_query_obstaculo": {"type": "string",
                                       "description": "2-4 palabras EN INGLÉS para el B-roll del "
                                                      "tramo OBSTÁCULO — distinto de los otros tramos. "
-                                                     "Si hay una persona en escena, agregá 'latin "
-                                                     "american'/'hispanic' a la query"},
+                                                     "Concreta y fotografiable (ver broll_query), nunca "
+                                                     "un concepto abstracto. Si hay una persona en "
+                                                     "escena, agregá 'latin american'/'hispanic' a la "
+                                                     "query"},
             "broll_query_ejecucion": {"type": "string",
                                       "description": "2-4 palabras EN INGLÉS para el B-roll del "
                                                      "tramo EJECUCIÓN — distinto de los otros tramos. "
-                                                     "Si hay una persona en escena, agregá 'latin "
-                                                     "american'/'hispanic' a la query"},
+                                                     "Concreta y fotografiable (ver broll_query), nunca "
+                                                     "un concepto abstracto. Si hay una persona en "
+                                                     "escena, agregá 'latin american'/'hispanic' a la "
+                                                     "query"},
             "broll_query_cta": {"type": "string",
                                 "description": "2-4 palabras EN INGLÉS para el B-roll del tramo "
-                                               "CTA — distinto de los otros tramos. Si hay una "
-                                               "persona en escena, agregá 'latin american'/'hispanic' "
+                                               "CTA — distinto de los otros tramos. Concreta y "
+                                               "fotografiable (ver broll_query), nunca un concepto "
+                                               "abstracto. Si hay una persona en escena, agregá 'latin "
+                                               "american'/'hispanic' "
                                                "a la query"},
             "caption": {"type": "string", "description": "Caption para el post, 2-3 frases"},
             "hashtags": {"type": "array", "items": {"type": "string"}},

@@ -17,6 +17,8 @@ from pathlib import Path
 
 import requests
 
+import medios_store
+
 BASE = Path(__file__).resolve().parent
 OUT = BASE / "test_video"
 
@@ -79,21 +81,45 @@ def voz_elevenlabs_con_timestamps(texto: str, destino: Path, voice_id: str = VOI
     return destino, alignment
 
 
-def broll_pexels(query: str, destino: Path, orientation: str = "portrait", indice: int = 0) -> Path:
+TOPE_RELEVANCIA = 6  # más allá de este puesto en el ranking de Pexels, los resultados
+                     # empiezan a alejarse del tema buscado (visto en la práctica con
+                     # queries de 2-4 palabras) — mejor repetir entre los primeros
+                     # TOPE_RELEVANCIA que seguir bajando y traer algo random.
+
+
+def broll_pexels(query: str, destino: Path, orientation: str = "portrait", indice: int = 0,
+                 perfil: str = "") -> Path:
     """`indice` elige cuál de los resultados de Pexels bajar (0 = el más
     relevante) — para poder pedir varias tomas DISTINTAS de la misma query
-    (misma búsqueda, clips distintos) en vez de repetir siempre el primero."""
+    (misma búsqueda, clips distintos) en vez de repetir siempre el primero.
+    Si `indice` excede `TOPE_RELEVANCIA`, cicla de nuevo entre los primeros
+    resultados en vez de seguir bajando en el ranking (ronda 2 = mismo
+    resultado que la ronda 1, pero como cada tramo pide sus propias tomas por
+    separado esto solo se nota si UN tramo tiene más de `TOPE_RELEVANCIA`
+    oraciones, caso raro).
+
+    Antes de elegir, descarta los clips ya usados en piezas de los últimos
+    `medios_store.VENTANA_DIAS` días (mismo `perfil`, si se pasa) — evita que
+    dos posts en la misma cuenta compartan el mismo B-roll (pedido de
+    Andrés, 4 ago 2026). Si TODOS los resultados de esta búsqueda ya se
+    usaron, no bloquea la generación: cae de nuevo a la lista completa."""
     r = requests.get(
         "https://api.pexels.com/videos/search",
         headers={"Authorization": os.environ["PEXELS_API_KEY"]},
-        params={"query": query, "orientation": orientation, "per_page": 5},
+        params={"query": query, "orientation": orientation, "per_page": 15},
         timeout=60,
     )
     r.raise_for_status()
     videos = r.json()["videos"]
     if not videos:
         raise RuntimeError(f"Pexels no devolvió videos para: {query}")
-    files = videos[min(indice, len(videos) - 1)]["video_files"]
+
+    usados = medios_store.usados_recientes(perfil)
+    disponibles = [v for v in videos if v["id"] not in usados] or videos
+    tope = min(len(disponibles), TOPE_RELEVANCIA)
+    video = disponibles[indice % tope]
+
+    files = video["video_files"]
     hd = min(
         (f for f in files if f["width"] and f["width"] >= 720),
         key=lambda f: f["width"],
@@ -104,6 +130,7 @@ def broll_pexels(query: str, destino: Path, orientation: str = "portrait", indic
         with open(destino, "wb") as fh:
             for chunk in v.iter_content(1 << 20):
                 fh.write(chunk)
+    medios_store.registrar(video["id"], query, perfil)
     return destino
 
 

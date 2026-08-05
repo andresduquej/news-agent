@@ -44,13 +44,13 @@ def _aspect_ratio_gemini(w: int, h: int) -> str:
 
 
 def fondo_pexels(query: str, destino: Path, w: int, h: int,
-                 duracion: float = DURACION_FONDO_SEG) -> Path:
+                 duracion: float = DURACION_FONDO_SEG, perfil: str = "") -> Path:
     """Clip corto de Pexels (libre de derechos), recortado/escalado a (w,h)
     y sin audio — listo para loopear como fondo animado."""
     orientation = "square" if w == h else "portrait"
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
         crudo = Path(tmp.name)
-    broll_pexels(query, crudo, orientation=orientation)
+    broll_pexels(query, crudo, orientation=orientation, perfil=perfil)
     subprocess.run(
         ["ffmpeg", "-y", "-stream_loop", "-1", "-i", str(crudo), "-t", f"{duracion:.2f}",
          "-vf", f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1",
@@ -124,7 +124,7 @@ def producir_imagen_animada(contenido: dict, slug: str, formato_imagen: str = "v
     if fuente_fondo == "ia":
         fondo_ia(query, fondo_path, w, h)
     else:
-        fondo_pexels(query, fondo_path, w, h)
+        fondo_pexels(query, fondo_path, w, h, perfil=contenido.get("perfil", ""))
 
     overlay_png = image_producer.producir_overlay_slide(
         brand, {"rol": "hook", "titular": contenido["titulo"], "cuerpo": contenido.get("cuerpo", "")},
@@ -149,7 +149,7 @@ def producir_historia_animada(contenido: dict, slug: str, estilo_visual: str = "
     if fuente_fondo == "ia":
         fondo_ia(query, fondo_path, w, h)
     else:
-        fondo_pexels(query, fondo_path, w, h)
+        fondo_pexels(query, fondo_path, w, h, perfil=contenido.get("perfil", ""))
 
     overlay_png = image_producer.producir_overlay_historia(brand, contenido, estilo_visual)
     destino = componer_fondo_con_overlay(fondo_path, overlay_png, carpeta / "historia_animada.mp4", w, h)
